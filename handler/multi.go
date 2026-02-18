@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"github.com/Philipp01105/logging-framework/core"
+	"github.com/Philipp01105/NLog/core"
 )
 
 // MultiHandler sends log entries to multiple handlers

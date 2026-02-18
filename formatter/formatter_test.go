@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Philipp01105/logging-framework/core"
+	"github.com/Philipp01105/NLog/core"
 )
 
 func TestTextFormatter_Basic(t *testing.T) {

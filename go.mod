@@ -1,3 +1,3 @@
-module github.com/Philipp01105/logging-framework
+module github.com/Philipp01105/NLog
 
 go 1.25

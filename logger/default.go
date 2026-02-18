@@ -3,9 +3,9 @@ package logger
 import (
 	"sync"
 
-	"github.com/Philipp01105/logging-framework/core"
-	"github.com/Philipp01105/logging-framework/formatter"
-	"github.com/Philipp01105/logging-framework/handler"
+	"github.com/Philipp01105/NLog/core"
+	"github.com/Philipp01105/NLog/formatter"
+	"github.com/Philipp01105/NLog/handler"
 )
 
 var (

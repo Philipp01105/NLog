@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Philipp01105/logging-framework/core"
+	"github.com/Philipp01105/NLog/core"
 )
 
 func TestOverflowPolicy_DropNewest(t *testing.T) {

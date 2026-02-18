@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Philipp01105/logging-framework/core"
-	"github.com/Philipp01105/logging-framework/formatter"
+	"github.com/Philipp01105/NLog/core"
+	"github.com/Philipp01105/NLog/formatter"
 )
 
 // FileHandler writes log entries to a file with rotation support

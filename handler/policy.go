@@ -3,7 +3,7 @@ package handler
 import (
 	"sync/atomic"
 
-	"github.com/Philipp01105/logging-framework/core"
+	"github.com/Philipp01105/NLog/core"
 )
 
 // OverflowPolicy defines how to handle full async queues

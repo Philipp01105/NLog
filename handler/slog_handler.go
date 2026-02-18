@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/Philipp01105/logging-framework/core"
+	"github.com/Philipp01105/NLog/core"
 )
 
 // SlogHandler is an adapter that implements slog.Handler using a logging-framework Handler.

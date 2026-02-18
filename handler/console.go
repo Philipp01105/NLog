@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Philipp01105/logging-framework/core"
-	"github.com/Philipp01105/logging-framework/formatter"
+	"github.com/Philipp01105/NLog/core"
+	"github.com/Philipp01105/NLog/formatter"
 )
 
 // ConsoleHandler writes log entries to stdout/stderr

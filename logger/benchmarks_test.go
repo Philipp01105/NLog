@@ -4,8 +4,8 @@ import (
 	"io"
 	"testing"
 
-	"github.com/Philipp01105/logging-framework/formatter"
-	"github.com/Philipp01105/logging-framework/handler"
+	"github.com/Philipp01105/NLog/formatter"
+	"github.com/Philipp01105/NLog/handler"
 )
 
 // BenchmarkInfoNoFields benchmarks Info() with no fields using a discard writer.

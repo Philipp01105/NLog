@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Philipp01105/logging-framework/core"
-	"github.com/Philipp01105/logging-framework/formatter"
+	"github.com/Philipp01105/NLog/core"
+	"github.com/Philipp01105/NLog/formatter"
 )
 
 func TestConsoleHandler_Sync(t *testing.T) {

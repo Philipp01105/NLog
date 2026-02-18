@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Philipp01105/logging-framework/core"
+	"github.com/Philipp01105/NLog/core"
 )
 
 // JSONFormatter formats log entries as JSON

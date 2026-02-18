@@ -5,7 +5,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/Philipp01105/logging-framework/core"
+	"github.com/Philipp01105/NLog/core"
 )
 
 // Formatter defines the interface for log formatters

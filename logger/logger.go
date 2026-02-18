@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Philipp01105/logging-framework/core"
-	"github.com/Philipp01105/logging-framework/handler"
+	"github.com/Philipp01105/NLog/core"
+	"github.com/Philipp01105/NLog/handler"
 )
 
 // osExit is a variable to allow overriding os.Exit in tests
