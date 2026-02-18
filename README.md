@@ -7,7 +7,7 @@ The framework is designed around **immutable logger instances** using the Builde
 ## Installation
 
 ```bash
-go get github.com/Philipp01105/logging-framework
+go get github.com/philipp01105/NLog
 ```
 
 Requires Go 1.22 or later.
@@ -20,7 +20,7 @@ The simplest way to use the framework is the package-level default logger:
 package main
 
 import (
-	"github.com/Philipp01105/logging-framework/logger"
+	"github.com/philipp01105/NLog/logger"
 )
 
 func main() {
@@ -38,9 +38,9 @@ For more advanced usage, create a custom logger instance with the Builder:
 package main
 
 import (
-	"github.com/Philipp01105/logging-framework/formatter"
-	"github.com/Philipp01105/logging-framework/handler"
-	"github.com/Philipp01105/logging-framework/logger"
+	"github.com/philipp01105/NLog/formatter"
+	"github.com/philipp01105/NLog/handler"
+	"github.com/philipp01105/NLog/logger"
 )
 
 func main() {
