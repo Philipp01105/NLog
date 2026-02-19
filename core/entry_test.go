@@ -60,12 +60,15 @@ func TestEntryPool(t *testing.T) {
 
 func TestGetCaller(t *testing.T) {
 	caller := GetCaller(0)
-	if caller == nil {
-		t.Fatal("GetCaller() returned nil")
+	if !caller.Defined {
+		t.Fatal("GetCaller() returned undefined CallerInfo")
 	}
 
 	if caller.File == "" {
 		t.Error("Expected non-empty file")
+	}
+	if caller.ShortFile == "" {
+		t.Error("Expected non-empty short file")
 	}
 	if caller.Line == 0 {
 		t.Error("Expected non-zero line number")

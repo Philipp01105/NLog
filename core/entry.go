@@ -1,6 +1,7 @@
 package core
 
 import (
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -50,14 +51,16 @@ type Entry struct {
 	Level   Level
 	Message string
 	Fields  []Field
-	Caller  *CallerInfo
+	Caller  CallerInfo
 }
 
 // CallerInfo contains information about the caller
 type CallerInfo struct {
-	File     string
-	Line     int
-	Function string
+	File      string
+	ShortFile string
+	Line      int
+	Function  string
+	Defined   bool
 }
 
 // entryPool is a pool of Entry objects to reduce allocations
@@ -74,7 +77,7 @@ func GetEntry() *Entry {
 	e := entryPool.Get().(*Entry)
 	e.Time = time.Now()
 	e.Fields = e.Fields[:0]
-	e.Caller = nil
+	e.Caller = CallerInfo{}
 	return e
 }
 
@@ -83,21 +86,18 @@ func PutEntry(e *Entry) {
 	if e == nil {
 		return
 	}
-	// Clear fields to avoid holding references
-	for i := range e.Fields {
-		e.Fields[i] = Field{}
-	}
+	// Re-slice to zero length; GC handles reference cleanup
 	e.Fields = e.Fields[:0]
 	e.Message = ""
-	e.Caller = nil
+	e.Caller = CallerInfo{}
 	entryPool.Put(e)
 }
 
 // GetCaller retrieves caller information
-func GetCaller(skip int) *CallerInfo {
+func GetCaller(skip int) CallerInfo {
 	pc, file, line, ok := runtime.Caller(skip)
 	if !ok {
-		return nil
+		return CallerInfo{}
 	}
 
 	fn := runtime.FuncForPC(pc)
@@ -106,9 +106,11 @@ func GetCaller(skip int) *CallerInfo {
 		funcName = fn.Name()
 	}
 
-	return &CallerInfo{
-		File:     file,
-		Line:     line,
-		Function: funcName,
+	return CallerInfo{
+		File:      file,
+		ShortFile: filepath.Base(file),
+		Line:      line,
+		Function:  funcName,
+		Defined:   true,
 	}
 }

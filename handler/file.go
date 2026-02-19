@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -17,6 +19,8 @@ import (
 type FileHandler struct {
 	filename        string
 	file            *os.File
+	bufWriter       *bufio.Writer
+	sizeWriter      *sizeTrackingWriter
 	formatter       formatter.Formatter
 	writerFormatter formatter.WriterFormatter
 	async           bool
@@ -34,6 +38,24 @@ type FileHandler struct {
 	blockTimeout    time.Duration
 	stats           *Stats
 	drainTimeout    time.Duration
+	blockTimer      *time.Timer
+}
+
+// sizeTrackingWriter wraps an io.Writer and tracks total bytes written
+type sizeTrackingWriter struct {
+	w       io.Writer
+	written int64
+}
+
+func (s *sizeTrackingWriter) Write(p []byte) (n int, err error) {
+	n, err = s.w.Write(p)
+	s.written += int64(n)
+	return
+}
+
+func (s *sizeTrackingWriter) reset(w io.Writer) {
+	s.w = w
+	s.written = 0
 }
 
 // FileConfig holds configuration for file handler
@@ -105,9 +127,12 @@ func NewFileHandler(cfg FileConfig) (*FileHandler, error) {
 		return nil, err
 	}
 
+	sw := &sizeTrackingWriter{w: file}
 	h := &FileHandler{
 		filename:       cfg.Filename,
 		file:           file,
+		sizeWriter:     sw,
+		bufWriter:      bufio.NewWriterSize(sw, 4096),
 		formatter:      cfg.Formatter,
 		async:          cfg.Async,
 		maxSize:        cfg.MaxSize,
@@ -121,6 +146,7 @@ func NewFileHandler(cfg FileConfig) (*FileHandler, error) {
 		blockTimeout:   cfg.BlockTimeout,
 		stats:          NewStats(),
 		drainTimeout:   cfg.DrainTimeout,
+		blockTimer:     newStoppedTimer(),
 	}
 
 	// Cache WriterFormatter for zero-alloc path
@@ -149,17 +175,42 @@ func (h *FileHandler) Handle(entry *core.Entry) error {
 
 	switch policy {
 	case Block:
-		// Try to send with timeout
+		// Try to send with timeout using reusable timer
 		select {
 		case h.queue <- entry:
 			return nil
-		case <-time.After(h.blockTimeout):
-			// Timeout - fall back to synchronous write
-			h.stats.IncrementBlocked()
-			return h.write(entry)
-		case <-h.closed:
-			// Handler is closing, write synchronously
-			return h.write(entry)
+		default:
+			// Queue full, use timer for timeout
+			if !h.blockTimer.Stop() {
+				select {
+				case <-h.blockTimer.C:
+				default:
+				}
+			}
+			h.blockTimer.Reset(h.blockTimeout)
+			select {
+			case h.queue <- entry:
+				if !h.blockTimer.Stop() {
+					select {
+					case <-h.blockTimer.C:
+					default:
+					}
+				}
+				return nil
+			case <-h.blockTimer.C:
+				// Timeout - fall back to synchronous write
+				h.stats.IncrementBlocked()
+				return h.write(entry)
+			case <-h.closed:
+				// Handler is closing, write synchronously
+				if !h.blockTimer.Stop() {
+					select {
+					case <-h.blockTimer.C:
+					default:
+					}
+				}
+				return h.write(entry)
+			}
 		}
 
 	case DropOldest:
@@ -202,6 +253,25 @@ func (h *FileHandler) Handle(entry *core.Entry) error {
 
 // write formats and writes an entry
 func (h *FileHandler) write(entry *core.Entry) error {
+	if h.writerFormatter != nil {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+
+		if err := h.rotateIfNeeded(); err != nil {
+			return err
+		}
+
+		prevFlushed := h.sizeWriter.written
+		prevBuffered := h.bufWriter.Buffered()
+		err := h.writerFormatter.FormatTo(entry, h.bufWriter)
+		if err == nil {
+			written := (h.sizeWriter.written - prevFlushed) + int64(h.bufWriter.Buffered()-prevBuffered)
+			h.currentSize += written
+			h.stats.IncrementProcessed()
+		}
+		return err
+	}
+
 	data, err := h.formatter.Format(entry)
 	if err != nil {
 		return err
@@ -215,7 +285,7 @@ func (h *FileHandler) write(entry *core.Entry) error {
 		return err
 	}
 
-	n, err := h.file.Write(data)
+	n, err := h.bufWriter.Write(data)
 	if err == nil {
 		h.currentSize += int64(n)
 		h.stats.IncrementProcessed()
@@ -257,7 +327,10 @@ func (h *FileHandler) rotateIfNeeded() error {
 
 // rotate performs the actual file rotation
 func (h *FileHandler) rotate() error {
-	// Sync and close current file
+	// Flush buffered writer, sync and close current file
+	if err := h.bufWriter.Flush(); err != nil {
+		return err
+	}
 	if err := h.file.Sync(); err != nil {
 		return err
 	}
@@ -291,6 +364,8 @@ func (h *FileHandler) rotate() error {
 	}
 
 	h.file = file
+	h.sizeWriter.reset(file)
+	h.bufWriter.Reset(h.sizeWriter)
 	h.currentSize = 0
 	h.lastRotateTime = time.Now()
 
@@ -404,12 +479,15 @@ func (h *FileHandler) Close() error {
 	defer h.mu.Unlock()
 
 	if h.file != nil {
-		if err := h.file.Sync(); err != nil {
-			err := h.file.Close()
-			if err != nil {
-				return err
-			}
-			return err
+		flushErr := h.bufWriter.Flush()
+		if flushErr != nil {
+			h.file.Close()
+			return flushErr
+		}
+		syncErr := h.file.Sync()
+		if syncErr != nil {
+			h.file.Close()
+			return syncErr
 		}
 		return h.file.Close()
 	}

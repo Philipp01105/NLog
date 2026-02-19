@@ -3,7 +3,6 @@ package formatter
 import (
 	"bytes"
 	"io"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -66,9 +65,9 @@ func (f *JSONFormatter) formatJSONToBuffer(entry *core.Entry, buf *bytes.Buffer)
 	buf.WriteByte('"')
 
 	// Caller info if enabled
-	if f.IncludeCaller && entry.Caller != nil {
+	if f.IncludeCaller && entry.Caller.Defined {
 		buf.WriteString(`,"caller":{"file":"`)
-		appendJSONString(buf, filepath.Base(entry.Caller.File))
+		appendJSONString(buf, entry.Caller.ShortFile)
 		buf.WriteString(`","line":`)
 		buf.WriteString(strconv.Itoa(entry.Caller.Line))
 		if entry.Caller.Function != "" {

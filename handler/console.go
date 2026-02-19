@@ -24,6 +24,7 @@ type ConsoleHandler struct {
 	blockTimeout    time.Duration
 	stats           *Stats
 	drainTimeout    time.Duration
+	blockTimer      *time.Timer
 }
 
 // ConsoleConfig holds configuration for console handler
@@ -74,6 +75,7 @@ func NewConsoleHandler(cfg ConsoleConfig) *ConsoleHandler {
 		blockTimeout:   cfg.BlockTimeout,
 		stats:          NewStats(),
 		drainTimeout:   cfg.DrainTimeout,
+		blockTimer:     newStoppedTimer(),
 	}
 
 	// Cache WriterFormatter for zero-alloc path
@@ -102,17 +104,42 @@ func (h *ConsoleHandler) Handle(entry *core.Entry) error {
 
 	switch policy {
 	case Block:
-		// Try to send with timeout
+		// Try to send with timeout using reusable timer
 		select {
 		case h.queue <- entry:
 			return nil
-		case <-time.After(h.blockTimeout):
-			// Timeout - fall back to synchronous write
-			h.stats.IncrementBlocked()
-			return h.write(entry)
-		case <-h.closed:
-			// Handler is closing, write synchronously
-			return h.write(entry)
+		default:
+			// Queue full, use timer for timeout
+			if !h.blockTimer.Stop() {
+				select {
+				case <-h.blockTimer.C:
+				default:
+				}
+			}
+			h.blockTimer.Reset(h.blockTimeout)
+			select {
+			case h.queue <- entry:
+				if !h.blockTimer.Stop() {
+					select {
+					case <-h.blockTimer.C:
+					default:
+					}
+				}
+				return nil
+			case <-h.blockTimer.C:
+				// Timeout - fall back to synchronous write
+				h.stats.IncrementBlocked()
+				return h.write(entry)
+			case <-h.closed:
+				// Handler is closing, write synchronously
+				if !h.blockTimer.Stop() {
+					select {
+					case <-h.blockTimer.C:
+					default:
+					}
+				}
+				return h.write(entry)
+			}
 		}
 
 	case DropOldest:

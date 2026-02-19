@@ -3,7 +3,6 @@ package formatter
 import (
 	"bytes"
 	"io"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -70,10 +69,9 @@ func (f *TextFormatter) formatToBuffer(entry *core.Entry, buf *bytes.Buffer) {
 	}
 
 	// Caller info if enabled
-	if f.IncludeCaller && entry.Caller != nil {
-		file := filepath.Base(entry.Caller.File)
+	if f.IncludeCaller && entry.Caller.Defined {
 		buf.WriteByte('[')
-		buf.WriteString(file)
+		buf.WriteString(entry.Caller.ShortFile)
 		buf.WriteByte(':')
 		buf.WriteString(strconv.Itoa(entry.Caller.Line))
 		buf.WriteString("] ")
@@ -82,13 +80,35 @@ func (f *TextFormatter) formatToBuffer(entry *core.Entry, buf *bytes.Buffer) {
 	// Message
 	buf.WriteString(entry.Message)
 
-	// Fields
+	// Fields - write values directly to buffer to avoid intermediate string allocations
 	for _, field := range entry.Fields {
 		buf.WriteByte(' ')
 		buf.WriteString(field.Key)
 		buf.WriteByte('=')
-		buf.WriteString(field.StringValue())
+		appendTextFieldValue(buf, field)
 	}
 
 	buf.WriteByte('\n')
+}
+
+// appendTextFieldValue writes a field value directly to the buffer without intermediate string allocation
+func appendTextFieldValue(buf *bytes.Buffer, field core.Field) {
+	switch field.Type {
+	case core.StringType:
+		buf.WriteString(field.Str)
+	case core.IntType, core.Int64Type:
+		buf.Write(strconv.AppendInt(buf.AvailableBuffer(), field.Int64, 10))
+	case core.Float64Type:
+		buf.Write(strconv.AppendFloat(buf.AvailableBuffer(), field.Float64, 'f', -1, 64))
+	case core.BoolType:
+		buf.Write(strconv.AppendBool(buf.AvailableBuffer(), field.Int64 == 1))
+	case core.TimeType:
+		buf.Write(time.Unix(0, field.Int64).AppendFormat(buf.AvailableBuffer(), time.RFC3339))
+	case core.DurationType:
+		buf.WriteString(time.Duration(field.Int64).String())
+	case core.ErrorType:
+		buf.WriteString(field.Str)
+	default:
+		buf.WriteString(field.StringValue())
+	}
 }

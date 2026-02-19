@@ -187,34 +187,46 @@ func (l *Logger) Panic(msg string, fields ...core.Field) {
 
 // Debugf logs a debug message with formatting
 func (l *Logger) Debugf(format string, args ...interface{}) {
-	l.Log(core.DebugLevel, fmt.Sprintf(format, args...))
+	if core.DebugLevel < l.level {
+		return
+	}
+	l.log(core.DebugLevel, fmt.Sprintf(format, args...), nil)
 }
 
 // Infof logs an info message with formatting
 func (l *Logger) Infof(format string, args ...interface{}) {
-	l.Log(core.InfoLevel, fmt.Sprintf(format, args...))
+	if core.InfoLevel < l.level {
+		return
+	}
+	l.log(core.InfoLevel, fmt.Sprintf(format, args...), nil)
 }
 
 // Warnf logs a warning message with formatting
 func (l *Logger) Warnf(format string, args ...interface{}) {
-	l.Log(core.WarnLevel, fmt.Sprintf(format, args...))
+	if core.WarnLevel < l.level {
+		return
+	}
+	l.log(core.WarnLevel, fmt.Sprintf(format, args...), nil)
 }
 
 // Errorf logs an error message with formatting
 func (l *Logger) Errorf(format string, args ...interface{}) {
-	l.Log(core.ErrorLevel, fmt.Sprintf(format, args...))
+	if core.ErrorLevel < l.level {
+		return
+	}
+	l.log(core.ErrorLevel, fmt.Sprintf(format, args...), nil)
 }
 
 // Fatalf logs a fatal message with formatting and exits the program with os.Exit(1)
 func (l *Logger) Fatalf(format string, args ...interface{}) {
-	l.Log(core.FatalLevel, fmt.Sprintf(format, args...))
+	l.log(core.FatalLevel, fmt.Sprintf(format, args...), nil)
 	osExit(1)
 }
 
 // Panicf logs a panic message with formatting and panics
 func (l *Logger) Panicf(format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
-	l.Log(core.PanicLevel, msg)
+	l.log(core.PanicLevel, msg, nil)
 	panic(msg)
 }
 

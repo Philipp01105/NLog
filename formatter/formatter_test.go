@@ -66,10 +66,12 @@ func TestTextFormatter_WithCaller(t *testing.T) {
 		Time:    time.Now(),
 		Level:   core.InfoLevel,
 		Message: "test",
-		Caller: &core.CallerInfo{
-			File:     "/path/to/file.go",
-			Line:     123,
-			Function: "main.main",
+		Caller: core.CallerInfo{
+			File:      "/path/to/file.go",
+			ShortFile: "file.go",
+			Line:      123,
+			Function:  "main.main",
+			Defined:   true,
 		},
 	}
 
@@ -154,10 +156,12 @@ func TestJSONFormatter_WithCaller(t *testing.T) {
 		Time:    time.Now(),
 		Level:   core.InfoLevel,
 		Message: "test",
-		Caller: &core.CallerInfo{
-			File:     "/path/to/file.go",
-			Line:     123,
-			Function: "main.main",
+		Caller: core.CallerInfo{
+			File:      "/path/to/file.go",
+			ShortFile: "file.go",
+			Line:      123,
+			Function:  "main.main",
+			Defined:   true,
 		},
 	}
 

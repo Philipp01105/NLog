@@ -2,9 +2,23 @@ package handler
 
 import (
 	"sync/atomic"
+	"time"
 
 	"github.com/philipp01105/nlog/core"
 )
+
+// newStoppedTimer creates a timer that is immediately stopped and drained,
+// ready for reuse via Reset().
+func newStoppedTimer() *time.Timer {
+	t := time.NewTimer(0)
+	if !t.Stop() {
+		select {
+		case <-t.C:
+		default:
+		}
+	}
+	return t
+}
 
 // OverflowPolicy defines how to handle full async queues
 type OverflowPolicy int
