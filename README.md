@@ -7,7 +7,7 @@ The framework is designed around **immutable logger instances** using the Builde
 ## Installation
 
 ```bash
-go get github.com/philipp01105/NLog
+go get github.com/philipp01105/nlog
 ```
 
 Requires Go 1.24 or later.
@@ -20,7 +20,7 @@ The simplest way to use the framework is the package-level default logger:
 package main
 
 import (
-	"github.com/philipp01105/NLog/logger"
+	"github.com/philipp01105/nlog/logger"
 )
 
 func main() {
@@ -38,9 +38,9 @@ For more advanced usage, create a custom logger instance with the Builder:
 package main
 
 import (
-	"github.com/philipp01105/NLog/formatter"
-	"github.com/philipp01105/NLog/handler"
-	"github.com/philipp01105/NLog/logger"
+	"github.com/philipp01105/nlog/formatter"
+	"github.com/philipp01105/nlog/handler"
+	"github.com/philipp01105/nlog/logger"
 )
 
 func main() {
@@ -240,9 +240,9 @@ package main
 import (
 	"log/slog"
 
-	"github.com/Philipp01105/NLog/core"
-	"github.com/Philipp01105/NLog/formatter"
-	"github.com/Philipp01105/NLog/handler"
+	"github.com/philipp01105/nlog/core"
+	"github.com/philipp01105/nlog/formatter"
+	"github.com/philipp01105/nlog/handler"
 )
 
 func main() {

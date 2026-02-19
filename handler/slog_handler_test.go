@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Philipp01105/NLog/core"
-	"github.com/Philipp01105/NLog/formatter"
+	"github.com/philipp01105/nlog/core"
+	"github.com/philipp01105/nlog/formatter"
 )
 
 func TestSlogHandler_Enabled(t *testing.T) {

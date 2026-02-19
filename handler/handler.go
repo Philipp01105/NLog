@@ -1,6 +1,6 @@
 package handler
 
-import "github.com/Philipp01105/NLog/core"
+import "github.com/philipp01105/nlog/core"
 
 // Handler defines the interface for log handlers
 type Handler interface {

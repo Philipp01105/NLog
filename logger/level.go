@@ -3,7 +3,7 @@ package logger
 import (
 	"strings"
 
-	"github.com/Philipp01105/NLog/core"
+	"github.com/philipp01105/nlog/core"
 )
 
 // Level Re-export type and constants for convenience

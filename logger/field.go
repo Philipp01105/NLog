@@ -3,7 +3,7 @@ package logger
 import (
 	"time"
 
-	"github.com/Philipp01105/NLog/core"
+	"github.com/philipp01105/nlog/core"
 )
 
 // Field helper functions for convenience

@@ -3,7 +3,7 @@ package handler
 import (
 	"sync/atomic"
 
-	"github.com/Philipp01105/NLog/core"
+	"github.com/philipp01105/nlog/core"
 )
 
 // OverflowPolicy defines how to handle full async queues
@@ -72,7 +72,7 @@ func (s *Stats) IncrementDropped(level core.Level) {
 	case core.ErrorLevel:
 		atomic.AddUint64(&s.DroppedError, 1)
 	default:
-		panic("unhandled default case, Please create a issue in github.com/Philipp01105/NLog")
+		panic("unhandled default case, Please create a issue in github.com/philipp01105/nlog")
 	}
 }
 

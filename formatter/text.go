@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Philipp01105/NLog/core"
+	"github.com/philipp01105/nlog/core"
 )
 
 // TextFormatter formats log entries as human-readable text

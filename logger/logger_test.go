@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Philipp01105/NLog/formatter"
-	"github.com/Philipp01105/NLog/handler"
+	"github.com/philipp01105/nlog/formatter"
+	"github.com/philipp01105/nlog/handler"
 )
 
 func TestLogger_LevelGate(t *testing.T) {
