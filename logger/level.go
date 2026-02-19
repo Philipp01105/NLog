@@ -6,7 +6,7 @@ import (
 	"github.com/Philipp01105/NLog/core"
 )
 
-// Re-export Level type and constants for convenience
+// Level Re-export type and constants for convenience
 type Level = core.Level
 
 const (

@@ -304,35 +304,6 @@ func TestConcurrentStats(t *testing.T) {
 	}
 }
 
-// BenchmarkZeroAllocFiltered verifies zero alloc for filtered logs
-func BenchmarkZeroAllocFiltered(b *testing.B) {
-	var buf bytes.Buffer
-	h := NewConsoleHandler(ConsoleConfig{
-		Writer:     &buf,
-		Async:      true,
-		BufferSize: 1000,
-	})
-	defer h.Close()
-
-	// This should be filtered and cause zero allocations
-	// Note: The logger level check happens before GetEntry()
-
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		// Simulating what logger does with level check
-		level := core.DebugLevel
-		minLevel := core.InfoLevel
-		if level < minLevel {
-			continue // Early exit before any allocations
-		}
-		entry := core.GetEntry()
-		entry.Level = level
-		entry.Message = "test"
-		h.Handle(entry)
-	}
-}
-
 // discard Writer is an io.Writer that discards all data
 type discardWriter struct{}
 

@@ -98,7 +98,10 @@ func NewFileHandler(cfg FileConfig) (*FileHandler, error) {
 	// Get file size
 	info, err := file.Stat()
 	if err != nil {
-		file.Close()
+		err := file.Close()
+		if err != nil {
+			return nil, err
+		}
 		return nil, err
 	}
 
@@ -328,7 +331,10 @@ func (h *FileHandler) cleanupOldBackups() {
 	if len(backups) > h.maxBackups {
 		toRemove := backups[:len(backups)-h.maxBackups]
 		for _, file := range toRemove {
-			os.Remove(file)
+			err := os.Remove(file)
+			if err != nil {
+				return
+			}
 		}
 	}
 }
@@ -340,7 +346,10 @@ func (h *FileHandler) process() {
 	for {
 		select {
 		case entry := <-h.queue:
-			h.write(entry)
+			err := h.write(entry)
+			if err != nil {
+				return
+			}
 			core.PutEntry(entry)
 		case <-h.closed:
 			// Drain remaining entries with timeout
@@ -349,7 +358,10 @@ func (h *FileHandler) process() {
 			for {
 				select {
 				case entry := <-h.queue:
-					h.write(entry)
+					err := h.write(entry)
+					if err != nil {
+						return
+					}
 					core.PutEntry(entry)
 				case <-deadline:
 					// Timeout reached, stop draining
@@ -393,7 +405,10 @@ func (h *FileHandler) Close() error {
 
 	if h.file != nil {
 		if err := h.file.Sync(); err != nil {
-			h.file.Close()
+			err := h.file.Close()
+			if err != nil {
+				return err
+			}
 			return err
 		}
 		return h.file.Close()

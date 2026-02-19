@@ -10,7 +10,7 @@ The framework is designed around **immutable logger instances** using the Builde
 go get github.com/philipp01105/NLog
 ```
 
-Requires Go 1.22 or later.
+Requires Go 1.24 or later.
 
 #### Example
 

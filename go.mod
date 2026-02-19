@@ -1,3 +1,3 @@
 module github.com/Philipp01105/NLog
 
-go 1.25
+go 1.24

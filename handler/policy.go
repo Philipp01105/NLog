@@ -71,6 +71,8 @@ func (s *Stats) IncrementDropped(level core.Level) {
 		atomic.AddUint64(&s.DroppedWarn, 1)
 	case core.ErrorLevel:
 		atomic.AddUint64(&s.DroppedError, 1)
+	default:
+		panic("unhandled default case, Please create a issue in github.com/Philipp01105/NLog")
 	}
 }
 

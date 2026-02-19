@@ -193,7 +193,10 @@ func (h *ConsoleHandler) process() {
 	for {
 		select {
 		case entry := <-h.queue:
-			h.write(entry)
+			err := h.write(entry)
+			if err != nil {
+				return
+			}
 			core.PutEntry(entry)
 		case <-h.closed:
 			// Drain remaining entries with timeout
@@ -202,7 +205,10 @@ func (h *ConsoleHandler) process() {
 			for {
 				select {
 				case entry := <-h.queue:
-					h.write(entry)
+					err := h.write(entry)
+					if err != nil {
+						return
+					}
 					core.PutEntry(entry)
 				case <-deadline:
 					// Timeout reached, stop draining

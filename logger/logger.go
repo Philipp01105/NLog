@@ -126,13 +126,14 @@ func (l *Logger) log(level core.Level, msg string, fields []core.Field) {
 		entry.Fields = append(entry.Fields, fields...)
 	}
 
-	// Get caller info if enabled
 	if l.includeCaller {
 		entry.Caller = core.GetCaller(l.callerSkip)
 	}
 
-	// Send to handler
-	l.handler.Handle(entry)
+	err := l.handler.Handle(entry)
+	if err != nil {
+		return
+	}
 
 	// Return entry to pool if handler supports it
 	if l.recycleEntry {
