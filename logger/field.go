@@ -55,7 +55,34 @@ func Err(err error) core.Field {
 	return core.Field{Key: "error", Type: core.ErrorType, Str: err.Error()}
 }
 
-// Any creates a field with any value
+// Any creates a field with any value.
+// For common primitive types, it uses typed fields to avoid boxing allocations.
 func Any(key string, val interface{}) core.Field {
-	return core.Field{Key: key, Type: core.AnyType, Any: val}
+	switch v := val.(type) {
+	case string:
+		return core.Field{Key: key, Type: core.StringType, Str: v}
+	case int:
+		return core.Field{Key: key, Type: core.IntType, Int64: int64(v)}
+	case int64:
+		return core.Field{Key: key, Type: core.Int64Type, Int64: v}
+	case float64:
+		return core.Field{Key: key, Type: core.Float64Type, Float64: v}
+	case bool:
+		int64Val := int64(0)
+		if v {
+			int64Val = 1
+		}
+		return core.Field{Key: key, Type: core.BoolType, Int64: int64Val}
+	case time.Duration:
+		return core.Field{Key: key, Type: core.DurationType, Int64: int64(v)}
+	case time.Time:
+		return core.Field{Key: key, Type: core.TimeType, Int64: v.UnixNano()}
+	case error:
+		if v == nil {
+			return core.Field{Key: key, Type: core.ErrorType, Str: ""}
+		}
+		return core.Field{Key: key, Type: core.ErrorType, Str: v.Error()}
+	default:
+		return core.Field{Key: key, Type: core.AnyType, Any: val}
+	}
 }

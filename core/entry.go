@@ -77,7 +77,8 @@ func GetEntry() *Entry {
 	e := entryPool.Get().(*Entry)
 	e.Time = time.Now()
 	e.Fields = e.Fields[:0]
-	e.Caller = CallerInfo{}
+	// CallerInfo is already clean: new entries are zero-valued,
+	// reused entries were cleaned by PutEntry.
 	return e
 }
 
@@ -89,7 +90,10 @@ func PutEntry(e *Entry) {
 	// Re-slice to zero length; GC handles reference cleanup
 	e.Fields = e.Fields[:0]
 	e.Message = ""
-	e.Caller = CallerInfo{}
+	// Only zero CallerInfo if it was set, to avoid zeroing ~60 bytes unnecessarily
+	if e.Caller.Defined {
+		e.Caller = CallerInfo{}
+	}
 	entryPool.Put(e)
 }
 
