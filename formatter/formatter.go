@@ -21,6 +21,14 @@ type WriterFormatter interface {
 	FormatTo(entry *core.Entry, w io.Writer) error
 }
 
+// BufferFormatter is an optional interface that formatters can implement
+// to format directly into a caller-provided buffer, avoiding internal
+// buffer pool overhead.
+type BufferFormatter interface {
+	// FormatEntry formats a log entry into the given buffer.
+	FormatEntry(entry *core.Entry, buf *bytes.Buffer)
+}
+
 // Config holds common formatter configuration
 type Config struct {
 	// IncludeCaller enables caller information in log output
@@ -32,7 +40,9 @@ type Config struct {
 // bufferPool is a pool of bytes.Buffer to reduce allocations
 var bufferPool = &sync.Pool{
 	New: func() interface{} {
-		return new(bytes.Buffer)
+		b := new(bytes.Buffer)
+		b.Grow(256)
+		return b
 	},
 }
 
