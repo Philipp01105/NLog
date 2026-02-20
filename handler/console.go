@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"sync"
@@ -10,16 +11,35 @@ import (
 	"github.com/philipp01105/nlog/formatter"
 )
 
+// lockedWriter wraps an io.Writer with a mutex, acquiring the lock only
+// for Write calls. Formatters prepare data in their own pooled buffers
+// and call Write once, so the lock is held only during the actual I/O.
+type lockedWriter struct {
+	mu *sync.Mutex
+	w  io.Writer
+}
+
+func (lw *lockedWriter) Write(p []byte) (n int, err error) {
+	lw.mu.Lock()
+	n, err = lw.w.Write(p)
+	lw.mu.Unlock()
+	return
+}
+
 // ConsoleHandler writes log entries to stdout/stderr
 type ConsoleHandler struct {
 	writer          io.Writer
 	formatter       formatter.Formatter
 	writerFormatter formatter.WriterFormatter
+	bufferFormatter formatter.BufferFormatter
 	async           bool
 	queue           chan *core.Entry
 	wg              sync.WaitGroup
 	closed          chan struct{}
 	mu              sync.Mutex
+	lw              lockedWriter
+	syncBuf         bytes.Buffer
+	syncEntry       core.Entry
 	overflowPolicy  map[core.Level]OverflowPolicy
 	blockTimeout    time.Duration
 	stats           *Stats
@@ -81,6 +101,18 @@ func NewConsoleHandler(cfg ConsoleConfig) *ConsoleHandler {
 	// Cache WriterFormatter for zero-alloc path
 	h.writerFormatter, _ = cfg.Formatter.(formatter.WriterFormatter)
 
+	// Cache BufferFormatter for sync fast path (avoids buffer pool + lockedWriter)
+	h.bufferFormatter, _ = cfg.Formatter.(formatter.BufferFormatter)
+
+	// Pre-allocate lockedWriter for lock-minimal write path
+	h.lw = lockedWriter{mu: &h.mu, w: h.writer}
+
+	// Pre-grow sync buffer for handler-owned format path
+	if !h.async && h.bufferFormatter != nil {
+		h.syncBuf.Grow(256)
+		h.syncEntry.Fields = make([]core.Field, 0, 16)
+	}
+
 	if h.async {
 		h.queue = make(chan *core.Entry, cfg.BufferSize)
 		h.wg.Add(1)
@@ -88,6 +120,53 @@ func NewConsoleHandler(cfg ConsoleConfig) *ConsoleHandler {
 	}
 
 	return h
+}
+
+// HandleLog processes log data directly without requiring a pooled Entry.
+// This avoids sync.Pool Get/Put overhead for the sync fast path.
+func (h *ConsoleHandler) HandleLog(t time.Time, level core.Level, msg string, loggerFields, callFields []core.Field, caller core.CallerInfo) error {
+	if !h.async && h.bufferFormatter != nil {
+		h.mu.Lock()
+		h.syncEntry.Time = t
+		h.syncEntry.Level = level
+		h.syncEntry.Message = msg
+		// Caller is always set by the logger: either GetCaller() result or zero value
+		h.syncEntry.Caller = caller
+		h.syncEntry.Fields = h.syncEntry.Fields[:0]
+		if len(loggerFields) > 0 {
+			h.syncEntry.Fields = append(h.syncEntry.Fields, loggerFields...)
+		}
+		if len(callFields) > 0 {
+			h.syncEntry.Fields = append(h.syncEntry.Fields, callFields...)
+		}
+
+		h.syncBuf.Reset()
+		h.bufferFormatter.FormatEntry(&h.syncEntry, &h.syncBuf)
+		_, err := h.writer.Write(h.syncBuf.Bytes())
+		h.mu.Unlock()
+		if err == nil {
+			h.stats.IncrementProcessed()
+		}
+		return err
+	}
+
+	// Fallback: create a pooled entry and use Handle
+	entry := core.GetEntry()
+	entry.Time = t
+	entry.Level = level
+	entry.Message = msg
+	entry.Caller = caller
+	if len(loggerFields) > 0 {
+		entry.Fields = append(entry.Fields, loggerFields...)
+	}
+	if len(callFields) > 0 {
+		entry.Fields = append(entry.Fields, callFields...)
+	}
+	err := h.Handle(entry)
+	if !h.async {
+		core.PutEntry(entry)
+	}
+	return err
 }
 
 // Handle processes a log entry
@@ -182,10 +261,24 @@ func (h *ConsoleHandler) Handle(entry *core.Entry) error {
 
 // write formats and writes an entry
 func (h *ConsoleHandler) write(entry *core.Entry) error {
-	if h.writerFormatter != nil {
+	// Sync fast path: format into handler-owned buffer, write under single lock.
+	// Avoids buffer pool get/put and lockedWriter indirection.
+	if !h.async && h.bufferFormatter != nil {
 		h.mu.Lock()
-		err := h.writerFormatter.FormatTo(entry, h.writer)
+		h.syncBuf.Reset()
+		h.bufferFormatter.FormatEntry(entry, &h.syncBuf)
+		_, err := h.writer.Write(h.syncBuf.Bytes())
 		h.mu.Unlock()
+		if err == nil {
+			h.stats.IncrementProcessed()
+		}
+		return err
+	}
+
+	if h.writerFormatter != nil {
+		// FormatTo prepares data in an internal pooled buffer, then calls
+		// lw.Write once – the lock is held only for the final I/O write.
+		err := h.writerFormatter.FormatTo(entry, &h.lw)
 		if err == nil {
 			h.stats.IncrementProcessed()
 		}
@@ -225,6 +318,20 @@ func (h *ConsoleHandler) process() {
 				return
 			}
 			core.PutEntry(entry)
+			// Batch drain: process additional queued entries without blocking
+		batchDrain:
+			for {
+				select {
+				case entry := <-h.queue:
+					err := h.write(entry)
+					if err != nil {
+						return
+					}
+					core.PutEntry(entry)
+				default:
+					break batchDrain
+				}
+			}
 		case <-h.closed:
 			// Drain remaining entries with timeout
 			deadline := time.After(h.drainTimeout)

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -23,17 +24,21 @@ type FileHandler struct {
 	sizeWriter      *sizeTrackingWriter
 	formatter       formatter.Formatter
 	writerFormatter formatter.WriterFormatter
+	bufferFormatter formatter.BufferFormatter
 	async           bool
 	queue           chan *core.Entry
 	wg              sync.WaitGroup
 	closed          chan struct{}
 	mu              sync.Mutex
+	syncBuf         bytes.Buffer
+	syncEntry       core.Entry
 	maxSize         int64
 	maxAge          time.Duration
 	maxBackups      int
 	rotateInterval  time.Duration
 	currentSize     int64
 	lastRotateTime  time.Time
+	hasRotation     bool
 	overflowPolicy  map[core.Level]OverflowPolicy
 	blockTimeout    time.Duration
 	stats           *Stats
@@ -141,6 +146,7 @@ func NewFileHandler(cfg FileConfig) (*FileHandler, error) {
 		rotateInterval: cfg.RotateInterval,
 		currentSize:    info.Size(),
 		lastRotateTime: time.Now(),
+		hasRotation:    cfg.MaxSize > 0 || cfg.MaxAge > 0 || cfg.RotateInterval > 0,
 		closed:         make(chan struct{}),
 		overflowPolicy: cfg.OverflowPolicy,
 		blockTimeout:   cfg.BlockTimeout,
@@ -151,6 +157,15 @@ func NewFileHandler(cfg FileConfig) (*FileHandler, error) {
 
 	// Cache WriterFormatter for zero-alloc path
 	h.writerFormatter, _ = cfg.Formatter.(formatter.WriterFormatter)
+
+	// Cache BufferFormatter for sync fast path (avoids buffer pool + direct bufio write)
+	h.bufferFormatter, _ = cfg.Formatter.(formatter.BufferFormatter)
+
+	// Pre-grow sync buffer for handler-owned format path
+	if h.bufferFormatter != nil {
+		h.syncBuf.Grow(256)
+		h.syncEntry.Fields = make([]core.Field, 0, 16)
+	}
 
 	if h.async {
 		h.queue = make(chan *core.Entry, cfg.BufferSize)
@@ -251,13 +266,83 @@ func (h *FileHandler) Handle(entry *core.Entry) error {
 	}
 }
 
+// HandleLog processes log data directly without requiring a pooled Entry.
+// This avoids sync.Pool Get/Put overhead for the sync fast path.
+func (h *FileHandler) HandleLog(t time.Time, level core.Level, msg string, loggerFields, callFields []core.Field, caller core.CallerInfo) error {
+	if !h.async && h.bufferFormatter != nil {
+		h.mu.Lock()
+		if err := h.rotateIfNeeded(); err != nil {
+			h.mu.Unlock()
+			return err
+		}
+		h.syncEntry.Time = t
+		h.syncEntry.Level = level
+		h.syncEntry.Message = msg
+		h.syncEntry.Caller = caller
+		h.syncEntry.Fields = h.syncEntry.Fields[:0]
+		if len(loggerFields) > 0 {
+			h.syncEntry.Fields = append(h.syncEntry.Fields, loggerFields...)
+		}
+		if len(callFields) > 0 {
+			h.syncEntry.Fields = append(h.syncEntry.Fields, callFields...)
+		}
+
+		h.syncBuf.Reset()
+		h.bufferFormatter.FormatEntry(&h.syncEntry, &h.syncBuf)
+		n, err := h.bufWriter.Write(h.syncBuf.Bytes())
+		if err == nil {
+			h.currentSize += int64(n)
+			h.stats.IncrementProcessed()
+		}
+		h.mu.Unlock()
+		return err
+	}
+
+	// Fallback: create a pooled entry and use Handle
+	entry := core.GetEntry()
+	entry.Time = t
+	entry.Level = level
+	entry.Message = msg
+	entry.Caller = caller
+	if len(loggerFields) > 0 {
+		entry.Fields = append(entry.Fields, loggerFields...)
+	}
+	if len(callFields) > 0 {
+		entry.Fields = append(entry.Fields, callFields...)
+	}
+	err := h.Handle(entry)
+	if !h.async {
+		core.PutEntry(entry)
+	}
+	return err
+}
+
 // write formats and writes an entry
 func (h *FileHandler) write(entry *core.Entry) error {
+	// BufferFormatter fast path: format into handler-owned buffer, write to bufio.Writer.
+	// Avoids buffer pool get/put overhead.
+	if h.bufferFormatter != nil {
+		h.mu.Lock()
+		if err := h.rotateIfNeeded(); err != nil {
+			h.mu.Unlock()
+			return err
+		}
+
+		h.syncBuf.Reset()
+		h.bufferFormatter.FormatEntry(entry, &h.syncBuf)
+		n, err := h.bufWriter.Write(h.syncBuf.Bytes())
+		if err == nil {
+			h.currentSize += int64(n)
+			h.stats.IncrementProcessed()
+		}
+		h.mu.Unlock()
+		return err
+	}
+
 	if h.writerFormatter != nil {
 		h.mu.Lock()
-		defer h.mu.Unlock()
-
 		if err := h.rotateIfNeeded(); err != nil {
+			h.mu.Unlock()
 			return err
 		}
 
@@ -269,6 +354,7 @@ func (h *FileHandler) write(entry *core.Entry) error {
 			h.currentSize += written
 			h.stats.IncrementProcessed()
 		}
+		h.mu.Unlock()
 		return err
 	}
 
@@ -278,10 +364,8 @@ func (h *FileHandler) write(entry *core.Entry) error {
 	}
 
 	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	// Check if rotation is needed
 	if err := h.rotateIfNeeded(); err != nil {
+		h.mu.Unlock()
 		return err
 	}
 
@@ -290,6 +374,7 @@ func (h *FileHandler) write(entry *core.Entry) error {
 		h.currentSize += int64(n)
 		h.stats.IncrementProcessed()
 	}
+	h.mu.Unlock()
 
 	return err
 }
@@ -301,6 +386,10 @@ func (h *FileHandler) CanRecycleEntry() bool {
 
 // rotateIfNeeded checks and performs rotation if needed
 func (h *FileHandler) rotateIfNeeded() error {
+	if !h.hasRotation {
+		return nil
+	}
+
 	needRotate := false
 
 	// Check size-based rotation
@@ -426,6 +515,20 @@ func (h *FileHandler) process() {
 				return
 			}
 			core.PutEntry(entry)
+			// Batch drain: process additional queued entries without blocking
+		batchDrain:
+			for {
+				select {
+				case entry := <-h.queue:
+					err := h.write(entry)
+					if err != nil {
+						return
+					}
+					core.PutEntry(entry)
+				default:
+					break batchDrain
+				}
+			}
 		case <-h.closed:
 			// Drain remaining entries with timeout
 			deadline := time.After(h.drainTimeout)
