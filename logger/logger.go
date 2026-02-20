@@ -3,6 +3,7 @@ package logger
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/philipp01105/nlog/core"
 	"github.com/philipp01105/nlog/handler"
@@ -14,6 +15,7 @@ var osExit = os.Exit
 // Logger is the main logging interface (immutable)
 type Logger struct {
 	handler       handler.Handler
+	fastHandler   handler.FastHandler
 	level         core.Level
 	fields        []core.Field
 	includeCaller bool
@@ -24,10 +26,12 @@ type Logger struct {
 // Builder provides a fluent API for building Logger instances
 type Builder struct {
 	handler       handler.Handler
+	fastHandler   handler.FastHandler
 	level         core.Level
 	fields        []core.Field
 	includeCaller bool
 	callerSkip    int
+	recycleEntry  bool
 }
 
 // NewBuilder creates a new logger builder
@@ -41,6 +45,14 @@ func NewBuilder() *Builder {
 // WithHandler sets the handler
 func (b *Builder) WithHandler(h handler.Handler) *Builder {
 	b.handler = h
+	// Pre-compute recycleEntry to avoid interface assertion in Build()
+	if rc, ok := h.(interface{ CanRecycleEntry() bool }); ok {
+		b.recycleEntry = rc.CanRecycleEntry()
+	} else {
+		b.recycleEntry = false
+	}
+	// Cache FastHandler for pool-free hot path
+	b.fastHandler, _ = h.(handler.FastHandler)
 	return b
 }
 
@@ -64,18 +76,15 @@ func (b *Builder) WithCaller(enabled bool) *Builder {
 
 // Build creates the Logger instance
 func (b *Builder) Build() *Logger {
-	l := &Logger{
+	return &Logger{
 		handler:       b.handler,
+		fastHandler:   b.fastHandler,
 		level:         b.level,
 		fields:        b.fields,
 		includeCaller: b.includeCaller,
 		callerSkip:    b.callerSkip,
+		recycleEntry:  b.recycleEntry,
 	}
-	// Check if handler supports entry recycling
-	if rc, ok := l.handler.(interface{ CanRecycleEntry() bool }); ok {
-		l.recycleEntry = rc.CanRecycleEntry()
-	}
-	return l
 }
 
 // With creates a new Logger with additional fields (immutable operation)
@@ -86,6 +95,7 @@ func (l *Logger) With(fields ...core.Field) *Logger {
 
 	return &Logger{
 		handler:       l.handler,
+		fastHandler:   l.fastHandler,
 		level:         l.level,
 		fields:        newFields,
 		includeCaller: l.includeCaller,
@@ -108,6 +118,20 @@ func (l *Logger) Log(level core.Level, msg string, fields ...core.Field) {
 func (l *Logger) log(level core.Level, msg string, fields []core.Field) {
 	// Handler check - exit if no handler (avoid any work)
 	if l.handler == nil {
+		return
+	}
+
+	// Fast path: use FastHandler when there are no call-site fields.
+	// This avoids sync.Pool Get/Put overhead. We cannot pass variadic
+	// fields through the interface because that causes them to escape
+	// to the heap.
+	if l.fastHandler != nil && len(fields) == 0 {
+		t := time.Now()
+		var caller core.CallerInfo
+		if l.includeCaller {
+			caller = core.GetCaller(l.callerSkip)
+		}
+		l.fastHandler.HandleLog(t, level, msg, l.fields, nil, caller)
 		return
 	}
 
