@@ -60,6 +60,32 @@ func TestConsoleHandler_Async(t *testing.T) {
 	}
 }
 
+func TestConsoleHandler_AsyncHandleLog(t *testing.T) {
+	var buf bytes.Buffer
+	h := NewConsoleHandler(ConsoleConfig{
+		Writer:     &buf,
+		Async:      true,
+		BufferSize: 100,
+		Formatter:  formatter.NewTextFormatter(formatter.Config{}),
+	})
+
+	// Use HandleLog (FastHandler path) which was previously recycling entries too early
+	for i := 0; i < 50; i++ {
+		h.HandleLog(time.Now(), core.InfoLevel, "handlelog async test", nil, nil, core.CallerInfo{})
+	}
+
+	h.Close()
+
+	output := buf.String()
+	if !strings.Contains(output, "handlelog async test") {
+		t.Errorf("Expected 'handlelog async test' in output, got: %s", output)
+	}
+	count := strings.Count(output, "handlelog async test")
+	if count != 50 {
+		t.Errorf("Expected 50 messages, got %d", count)
+	}
+}
+
 func TestConsoleHandler_DropNewest(t *testing.T) {
 	var buf bytes.Buffer
 	h := NewConsoleHandler(ConsoleConfig{
