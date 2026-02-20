@@ -72,10 +72,12 @@ var entryPool = sync.Pool{
 	},
 }
 
-// GetEntry retrieves an Entry from the pool
+// GetEntry retrieves an Entry from the pool.
+// Callers must set Time explicitly; this avoids a redundant time.Now()
+// when the handler already knows the timestamp (e.g. HandleLog fallback).
 func GetEntry() *Entry {
 	e := entryPool.Get().(*Entry)
-	e.Time = time.Now()
+	e.Message = ""
 	e.Fields = e.Fields[:0]
 	// CallerInfo is already clean: new entries are zero-valued,
 	// reused entries were cleaned by PutEntry.
@@ -89,7 +91,6 @@ func PutEntry(e *Entry) {
 	}
 	// Re-slice to zero length; GC handles reference cleanup
 	e.Fields = e.Fields[:0]
-	e.Message = ""
 	// Only zero CallerInfo if it was set, to avoid zeroing ~60 bytes unnecessarily
 	if e.Caller.Defined {
 		e.Caller = CallerInfo{}

@@ -137,6 +137,7 @@ func (l *Logger) log(level core.Level, msg string, fields []core.Field) {
 
 	// Get entry from pool AFTER level check
 	entry := core.GetEntry()
+	entry.Time = time.Now()
 	entry.Level = level
 	entry.Message = msg
 

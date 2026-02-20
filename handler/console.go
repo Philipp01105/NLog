@@ -26,6 +26,14 @@ func (lw *lockedWriter) Write(p []byte) (n int, err error) {
 	return
 }
 
+// parallelBuf combines an entry and buffer for pool-friendly parallel formatting.
+// Pooling them together reduces HandleLog's parallel fallback from 4 pool
+// operations (entry pool Get/Put + formatter buffer Get/Put) to 2.
+type parallelBuf struct {
+	buf   bytes.Buffer
+	entry core.Entry
+}
+
 // ConsoleHandler writes log entries to stdout/stderr
 type ConsoleHandler struct {
 	writer          io.Writer
@@ -36,10 +44,13 @@ type ConsoleHandler struct {
 	queue           chan *core.Entry
 	wg              sync.WaitGroup
 	closed          chan struct{}
-	mu              sync.Mutex
+	mu              sync.Mutex // protects syncBuf, syncEntry (format lock)
+	writeMu         sync.Mutex // protects writer (I/O lock, held briefly)
+	// Lock ordering: always mu before writeMu. Never acquire mu while holding writeMu.
 	lw              lockedWriter
 	syncBuf         bytes.Buffer
 	syncEntry       core.Entry
+	parBufPool      sync.Pool // pool of *parallelBuf for parallel HandleLog path
 	overflowPolicy  map[core.Level]OverflowPolicy
 	blockTimeout    time.Duration
 	stats           *Stats
@@ -105,12 +116,20 @@ func NewConsoleHandler(cfg ConsoleConfig) *ConsoleHandler {
 	h.bufferFormatter, _ = cfg.Formatter.(formatter.BufferFormatter)
 
 	// Pre-allocate lockedWriter for lock-minimal write path
-	h.lw = lockedWriter{mu: &h.mu, w: h.writer}
+	h.lw = lockedWriter{mu: &h.writeMu, w: h.writer}
 
 	// Pre-grow sync buffer for handler-owned format path
-	if !h.async && h.bufferFormatter != nil {
+	if h.bufferFormatter != nil {
 		h.syncBuf.Grow(256)
 		h.syncEntry.Fields = make([]core.Field, 0, 16)
+		h.parBufPool = sync.Pool{
+			New: func() interface{} {
+				pb := &parallelBuf{}
+				pb.buf.Grow(256)
+				pb.entry.Fields = make([]core.Field, 0, 16)
+				return pb
+			},
+		}
 	}
 
 	if h.async {
@@ -123,34 +142,73 @@ func NewConsoleHandler(cfg ConsoleConfig) *ConsoleHandler {
 }
 
 // HandleLog processes log data directly without requiring a pooled Entry.
-// This avoids sync.Pool Get/Put overhead for the sync fast path.
+// Under no contention, uses handler-owned buffer for zero-alloc formatting.
+// Under contention (parallel callers), uses a combined entry+buffer pool
+// that formats outside the format lock for better parallel throughput.
 func (h *ConsoleHandler) HandleLog(t time.Time, level core.Level, msg string, loggerFields, callFields []core.Field, caller core.CallerInfo) error {
 	if !h.async && h.bufferFormatter != nil {
-		h.mu.Lock()
-		h.syncEntry.Time = t
-		h.syncEntry.Level = level
-		h.syncEntry.Message = msg
-		// Caller is always set by the logger: either GetCaller() result or zero value
-		h.syncEntry.Caller = caller
-		h.syncEntry.Fields = h.syncEntry.Fields[:0]
-		if len(loggerFields) > 0 {
-			h.syncEntry.Fields = append(h.syncEntry.Fields, loggerFields...)
-		}
-		if len(callFields) > 0 {
-			h.syncEntry.Fields = append(h.syncEntry.Fields, callFields...)
+		if h.mu.TryLock() {
+			h.syncEntry.Time = t
+			h.syncEntry.Level = level
+			h.syncEntry.Message = msg
+			// Caller is always set by the logger: either GetCaller() result or zero value
+			h.syncEntry.Caller = caller
+			h.syncEntry.Fields = h.syncEntry.Fields[:0]
+			if len(loggerFields) > 0 {
+				h.syncEntry.Fields = append(h.syncEntry.Fields, loggerFields...)
+			}
+			if len(callFields) > 0 {
+				h.syncEntry.Fields = append(h.syncEntry.Fields, callFields...)
+			}
+
+			h.syncBuf.Reset()
+			h.bufferFormatter.FormatEntry(&h.syncEntry, &h.syncBuf)
+			h.writeMu.Lock()
+			_, err := h.writer.Write(h.syncBuf.Bytes())
+			h.writeMu.Unlock()
+			h.mu.Unlock()
+			if err == nil {
+				h.stats.IncrementProcessed()
+			}
+			return err
 		}
 
-		h.syncBuf.Reset()
-		h.bufferFormatter.FormatEntry(&h.syncEntry, &h.syncBuf)
-		_, err := h.writer.Write(h.syncBuf.Bytes())
-		h.mu.Unlock()
+		// Parallel fallback: combined entry+buffer from pool avoids
+		// Entry pool Get/Put + formatter buffer Get/Put (2 ops vs 4)
+		// and skips the second TryLock attempt in write().
+		pb := h.parBufPool.Get().(*parallelBuf)
+		pb.entry.Time = t
+		pb.entry.Level = level
+		pb.entry.Message = msg
+		pb.entry.Caller = caller
+		pb.entry.Fields = pb.entry.Fields[:0]
+		if len(loggerFields) > 0 {
+			pb.entry.Fields = append(pb.entry.Fields, loggerFields...)
+		}
+		if len(callFields) > 0 {
+			pb.entry.Fields = append(pb.entry.Fields, callFields...)
+		}
+
+		pb.buf.Reset()
+		h.bufferFormatter.FormatEntry(&pb.entry, &pb.buf)
+		h.writeMu.Lock()
+		_, err := h.writer.Write(pb.buf.Bytes())
+		h.writeMu.Unlock()
+
+		// Clean for pool reuse
+		pb.entry.Fields = pb.entry.Fields[:0]
+		if pb.entry.Caller.Defined {
+			pb.entry.Caller = core.CallerInfo{}
+		}
+		h.parBufPool.Put(pb)
+
 		if err == nil {
 			h.stats.IncrementProcessed()
 		}
 		return err
 	}
 
-	// Fallback: create a pooled entry and use Handle
+	// Fallback for async mode or non-BufferFormatter: pool entry + Handle
 	entry := core.GetEntry()
 	entry.Time = t
 	entry.Level = level
@@ -259,25 +317,30 @@ func (h *ConsoleHandler) Handle(entry *core.Entry) error {
 	}
 }
 
-// write formats and writes an entry
+// write formats and writes an entry.
+// Uses TryLock on mu to access handler-owned buffer when uncontended (zero pool
+// overhead). When contended, falls through to writerFormatter which formats
+// in a pool buffer and locks writeMu only for the final I/O – minimizing
+// lock hold time for parallel callers.
 func (h *ConsoleHandler) write(entry *core.Entry) error {
-	// Sync fast path: format into handler-owned buffer, write under single lock.
-	// Avoids buffer pool get/put and lockedWriter indirection.
-	if !h.async && h.bufferFormatter != nil {
-		h.mu.Lock()
-		h.syncBuf.Reset()
-		h.bufferFormatter.FormatEntry(entry, &h.syncBuf)
-		_, err := h.writer.Write(h.syncBuf.Bytes())
-		h.mu.Unlock()
-		if err == nil {
-			h.stats.IncrementProcessed()
+	if h.bufferFormatter != nil {
+		if h.mu.TryLock() {
+			h.syncBuf.Reset()
+			h.bufferFormatter.FormatEntry(entry, &h.syncBuf)
+			h.writeMu.Lock()
+			_, err := h.writer.Write(h.syncBuf.Bytes())
+			h.writeMu.Unlock()
+			h.mu.Unlock()
+			if err == nil {
+				h.stats.IncrementProcessed()
+			}
+			return err
 		}
-		return err
 	}
 
 	if h.writerFormatter != nil {
 		// FormatTo prepares data in an internal pooled buffer, then calls
-		// lw.Write once – the lock is held only for the final I/O write.
+		// lw.Write once – writeMu is held only for the final I/O write.
 		err := h.writerFormatter.FormatTo(entry, &h.lw)
 		if err == nil {
 			h.stats.IncrementProcessed()
@@ -290,15 +353,35 @@ func (h *ConsoleHandler) write(entry *core.Entry) error {
 		return err
 	}
 
-	h.mu.Lock()
+	h.writeMu.Lock()
 	_, writeErr := h.writer.Write(data)
-	h.mu.Unlock()
+	h.writeMu.Unlock()
 
 	if writeErr == nil {
 		h.stats.IncrementProcessed()
 	}
 
 	return writeErr
+}
+
+// processWrite formats and writes using handler-owned buffer under Lock.
+// Used only by the single-consumer process() goroutine where contention
+// is impossible, so the lock always succeeds immediately.
+func (h *ConsoleHandler) processWrite(entry *core.Entry) error {
+	if h.bufferFormatter != nil {
+		h.mu.Lock()
+		h.syncBuf.Reset()
+		h.bufferFormatter.FormatEntry(entry, &h.syncBuf)
+		h.writeMu.Lock()
+		_, err := h.writer.Write(h.syncBuf.Bytes())
+		h.writeMu.Unlock()
+		h.mu.Unlock()
+		if err == nil {
+			h.stats.IncrementProcessed()
+		}
+		return err
+	}
+	return h.write(entry)
 }
 
 // CanRecycleEntry returns true if the caller can recycle the entry after Handle returns
@@ -313,7 +396,7 @@ func (h *ConsoleHandler) process() {
 	for {
 		select {
 		case entry := <-h.queue:
-			err := h.write(entry)
+			err := h.processWrite(entry)
 			if err != nil {
 				return
 			}
@@ -323,7 +406,7 @@ func (h *ConsoleHandler) process() {
 			for {
 				select {
 				case entry := <-h.queue:
-					err := h.write(entry)
+					err := h.processWrite(entry)
 					if err != nil {
 						return
 					}
@@ -339,7 +422,7 @@ func (h *ConsoleHandler) process() {
 			for {
 				select {
 				case entry := <-h.queue:
-					err := h.write(entry)
+					err := h.processWrite(entry)
 					if err != nil {
 						return
 					}
