@@ -45,6 +45,11 @@ func (f *JSONFormatter) FormatTo(entry *core.Entry, w io.Writer) error {
 	return err
 }
 
+// FormatEntry formats an entry as JSON into the given buffer (implements BufferFormatter).
+func (f *JSONFormatter) FormatEntry(entry *core.Entry, buf *bytes.Buffer) {
+	f.formatJSONToBuffer(entry, buf)
+}
+
 // formatJSONToBuffer builds JSON manually into the buffer without allocations
 func (f *JSONFormatter) formatJSONToBuffer(entry *core.Entry, buf *bytes.Buffer) {
 	buf.WriteByte('{')
@@ -91,8 +96,16 @@ func (f *JSONFormatter) formatJSONToBuffer(entry *core.Entry, buf *bytes.Buffer)
 
 // appendJSONString writes a JSON-escaped string (without surrounding quotes) to the buffer
 func appendJSONString(buf *bytes.Buffer, s string) {
+	start := 0
 	for i := 0; i < len(s); i++ {
 		c := s[i]
+		if c >= 0x20 && c != '"' && c != '\\' {
+			continue
+		}
+		// Flush unescaped prefix
+		if start < i {
+			buf.WriteString(s[start:i])
+		}
 		switch c {
 		case '"':
 			buf.WriteString(`\"`)
@@ -105,14 +118,15 @@ func appendJSONString(buf *bytes.Buffer, s string) {
 		case '\t':
 			buf.WriteString(`\t`)
 		default:
-			if c < 0x20 {
-				buf.WriteString(`\u00`)
-				buf.WriteByte(hexChars[c>>4])
-				buf.WriteByte(hexChars[c&0x0f])
-			} else {
-				buf.WriteByte(c)
-			}
+			buf.WriteString(`\u00`)
+			buf.WriteByte(hexChars[c>>4])
+			buf.WriteByte(hexChars[c&0x0f])
 		}
+		start = i + 1
+	}
+	// Flush remaining
+	if start < len(s) {
+		buf.WriteString(s[start:])
 	}
 }
 

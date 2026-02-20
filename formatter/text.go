@@ -2,6 +2,7 @@ package formatter
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"strconv"
 	"time"
@@ -44,6 +45,11 @@ func (f *TextFormatter) FormatTo(entry *core.Entry, w io.Writer) error {
 	_, err := w.Write(buf.Bytes())
 	putBuffer(buf)
 	return err
+}
+
+// FormatEntry formats an entry into the given buffer (implements BufferFormatter).
+func (f *TextFormatter) FormatEntry(entry *core.Entry, buf *bytes.Buffer) {
+	f.formatToBuffer(entry, buf)
 }
 
 // pre-formatted level strings to avoid multiple WriteString calls
@@ -108,6 +114,8 @@ func appendTextFieldValue(buf *bytes.Buffer, field core.Field) {
 		buf.WriteString(time.Duration(field.Int64).String())
 	case core.ErrorType:
 		buf.WriteString(field.Str)
+	case core.AnyType:
+		fmt.Fprint(buf, field.Any)
 	default:
 		buf.WriteString(field.StringValue())
 	}
