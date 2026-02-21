@@ -301,6 +301,61 @@ func TestLogger_Panic(t *testing.T) {
 	log.Panic("panic message")
 }
 
+func TestLogger_WithCoarseClock(t *testing.T) {
+	var buf bytes.Buffer
+	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+		Writer:    &buf,
+		Async:     false,
+		Formatter: formatter.NewTextFormatter(formatter.Config{}),
+	})
+
+	log := NewBuilder().
+		WithHandler(h).
+		WithLevel(InfoLevel).
+		WithCoarseClock(true).
+		Build()
+
+	log.Info("coarse clock message")
+	output := buf.String()
+	if !strings.Contains(output, "coarse clock message") {
+		t.Errorf("Expected 'coarse clock message' in output, got: %s", output)
+	}
+
+	buf.Reset()
+
+	// Also test with fields (non-fast path)
+	log.Info("with field", String("key", "value"))
+	output = buf.String()
+	if !strings.Contains(output, "with field") {
+		t.Errorf("Expected 'with field' in output, got: %s", output)
+	}
+	if !strings.Contains(output, "key=value") {
+		t.Errorf("Expected 'key=value' in output, got: %s", output)
+	}
+}
+
+func TestLogger_CoarseClockWith(t *testing.T) {
+	var buf bytes.Buffer
+	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+		Writer:    &buf,
+		Async:     false,
+		Formatter: formatter.NewTextFormatter(formatter.Config{}),
+	})
+
+	parent := NewBuilder().
+		WithHandler(h).
+		WithLevel(InfoLevel).
+		WithCoarseClock(true).
+		Build()
+
+	child := parent.With(String("child", "value"))
+	child.Info("child message")
+	output := buf.String()
+	if !strings.Contains(output, "child message") {
+		t.Errorf("Expected 'child message' in output, got: %s", output)
+	}
+}
+
 func TestParseLevel_FatalPanic(t *testing.T) {
 	if ParseLevel("FATAL") != FatalLevel {
 		t.Error("Expected FatalLevel for 'FATAL'")

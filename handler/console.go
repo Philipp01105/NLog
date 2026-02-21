@@ -47,15 +47,15 @@ type ConsoleHandler struct {
 	mu              sync.Mutex // protects syncBuf, syncEntry (format lock)
 	writeMu         sync.Mutex // protects writer (I/O lock, held briefly)
 	// Lock ordering: always mu before writeMu. Never acquire mu while holding writeMu.
-	lw              lockedWriter
-	syncBuf         bytes.Buffer
-	syncEntry       core.Entry
-	parBufPool      sync.Pool // pool of *parallelBuf for parallel HandleLog path
-	overflowPolicy  map[core.Level]OverflowPolicy
-	blockTimeout    time.Duration
-	stats           *Stats
-	drainTimeout    time.Duration
-	blockTimer      *time.Timer
+	lw             lockedWriter
+	syncBuf        bytes.Buffer
+	syncEntry      core.Entry
+	parBufPool     sync.Pool // pool of *parallelBuf for parallel HandleLog path
+	overflowPolicy map[core.Level]OverflowPolicy
+	blockTimeout   time.Duration
+	stats          *Stats
+	drainTimeout   time.Duration
+	blockTimer     *time.Timer
 }
 
 // ConsoleConfig holds configuration for console handler
@@ -393,26 +393,59 @@ func (h *ConsoleHandler) CanRecycleEntry() bool {
 func (h *ConsoleHandler) process() {
 	defer h.wg.Done()
 
+	// batchBuf accumulates formatted entries so we can issue a single Write
+	// call per batch instead of one syscall per entry.
+	var batchBuf bytes.Buffer
+	batchBuf.Grow(4096)
+
 	for {
 		select {
 		case entry := <-h.queue:
-			err := h.processWrite(entry)
-			if err != nil {
-				return
-			}
-			core.PutEntry(entry)
-			// Batch drain: process additional queued entries without blocking
-		batchDrain:
-			for {
-				select {
-				case entry := <-h.queue:
-					err := h.processWrite(entry)
-					if err != nil {
-						return
+			if h.bufferFormatter != nil {
+				// Batch path: format all currently-queued entries into batchBuf,
+				// then issue a single Write call for the entire batch.
+				batchBuf.Reset()
+				h.bufferFormatter.FormatEntry(entry, &batchBuf)
+				core.PutEntry(entry)
+				batchCount := 1
+			batchDrain:
+				for {
+					select {
+					case entry := <-h.queue:
+						h.bufferFormatter.FormatEntry(entry, &batchBuf)
+						core.PutEntry(entry)
+						batchCount++
+					default:
+						break batchDrain
 					}
-					core.PutEntry(entry)
-				default:
-					break batchDrain
+				}
+				// Count entries as processed before writing: they have already been
+				// dequeued and recycled via PutEntry, so they are consumed
+				// regardless of whether the Write call succeeds.
+				h.stats.AddProcessed(uint64(batchCount))
+				h.writeMu.Lock()
+				_, writeErr := h.writer.Write(batchBuf.Bytes())
+				h.writeMu.Unlock()
+				if writeErr != nil {
+					return
+				}
+			} else {
+				// Non-bufferFormatter fallback: individual write per entry.
+				if err := h.processWrite(entry); err != nil {
+					return
+				}
+				core.PutEntry(entry)
+			drainFallback:
+				for {
+					select {
+					case entry := <-h.queue:
+						if err := h.processWrite(entry); err != nil {
+							return
+						}
+						core.PutEntry(entry)
+					default:
+						break drainFallback
+					}
 				}
 			}
 		case <-h.closed:
@@ -422,8 +455,7 @@ func (h *ConsoleHandler) process() {
 			for {
 				select {
 				case entry := <-h.queue:
-					err := h.processWrite(entry)
-					if err != nil {
+					if err := h.processWrite(entry); err != nil {
 						return
 					}
 					core.PutEntry(entry)

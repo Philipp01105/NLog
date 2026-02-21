@@ -21,6 +21,7 @@ type Logger struct {
 	includeCaller bool
 	callerSkip    int
 	recycleEntry  bool
+	coarseClock   bool
 }
 
 // Builder provides a fluent API for building Logger instances
@@ -32,6 +33,7 @@ type Builder struct {
 	includeCaller bool
 	callerSkip    int
 	recycleEntry  bool
+	coarseClock   bool
 }
 
 // NewBuilder creates a new logger builder
@@ -74,8 +76,21 @@ func (b *Builder) WithCaller(enabled bool) *Builder {
 	return b
 }
 
+// WithCoarseClock enables a cached timestamp that is updated every 500µs
+// by a background goroutine instead of calling time.Now() on every log
+// call. This reduces per-call overhead at the cost of up to ~0.5ms
+// timestamp granularity. The background goroutine is started once and
+// runs for the lifetime of the process.
+func (b *Builder) WithCoarseClock(enabled bool) *Builder {
+	b.coarseClock = enabled
+	return b
+}
+
 // Build creates the Logger instance
 func (b *Builder) Build() *Logger {
+	if b.coarseClock {
+		core.StartCoarseClock()
+	}
 	return &Logger{
 		handler:       b.handler,
 		fastHandler:   b.fastHandler,
@@ -84,6 +99,7 @@ func (b *Builder) Build() *Logger {
 		includeCaller: b.includeCaller,
 		callerSkip:    b.callerSkip,
 		recycleEntry:  b.recycleEntry,
+		coarseClock:   b.coarseClock,
 	}
 }
 
@@ -101,6 +117,7 @@ func (l *Logger) With(fields ...core.Field) *Logger {
 		includeCaller: l.includeCaller,
 		callerSkip:    l.callerSkip,
 		recycleEntry:  l.recycleEntry,
+		coarseClock:   l.coarseClock,
 	}
 }
 
@@ -126,7 +143,12 @@ func (l *Logger) log(level core.Level, msg string, fields []core.Field) {
 	// fields through the interface because that causes them to escape
 	// to the heap.
 	if l.fastHandler != nil && len(fields) == 0 {
-		t := time.Now()
+		var t time.Time
+		if l.coarseClock {
+			t = core.CoarseNow()
+		} else {
+			t = time.Now()
+		}
 		var caller core.CallerInfo
 		if l.includeCaller {
 			caller = core.GetCaller(l.callerSkip)
@@ -137,7 +159,11 @@ func (l *Logger) log(level core.Level, msg string, fields []core.Field) {
 
 	// Get entry from pool AFTER level check
 	entry := core.GetEntry()
-	entry.Time = time.Now()
+	if l.coarseClock {
+		entry.Time = core.CoarseNow()
+	} else {
+		entry.Time = time.Now()
+	}
 	entry.Level = level
 	entry.Message = msg
 

@@ -86,6 +86,36 @@ func TestConsoleHandler_AsyncHandleLog(t *testing.T) {
 	}
 }
 
+// TestConsoleHandler_AsyncBatchWrite verifies that all entries are written and
+// that stats correctly reflect the batch-processed count.
+func TestConsoleHandler_AsyncBatchWrite(t *testing.T) {
+	var buf bytes.Buffer
+	const n = 200
+	h := NewConsoleHandler(ConsoleConfig{
+		Writer:     &buf,
+		Async:      true,
+		BufferSize: n,
+		Formatter:  formatter.NewTextFormatter(formatter.Config{}),
+	})
+
+	for i := 0; i < n; i++ {
+		entry := core.GetEntry()
+		entry.Level = core.InfoLevel
+		entry.Message = "batch entry"
+		h.Handle(entry)
+	}
+	h.Close()
+
+	got := strings.Count(buf.String(), "batch entry")
+	if got != n {
+		t.Errorf("expected %d entries in output, got %d", n, got)
+	}
+	stats := h.Stats()
+	if stats.ProcessedTotal != n {
+		t.Errorf("expected ProcessedTotal=%d, got %d", n, stats.ProcessedTotal)
+	}
+}
+
 func TestConsoleHandler_DropNewest(t *testing.T) {
 	var buf bytes.Buffer
 	h := NewConsoleHandler(ConsoleConfig{

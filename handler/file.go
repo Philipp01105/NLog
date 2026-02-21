@@ -507,26 +507,67 @@ func (h *FileHandler) cleanupOldBackups() {
 func (h *FileHandler) process() {
 	defer h.wg.Done()
 
+	// batchBuf accumulates formatted entries so we can issue a single Write
+	// call (into bufio.Writer) per batch under a single mu lock.
+	var batchBuf bytes.Buffer
+	batchBuf.Grow(4096)
+
 	for {
 		select {
 		case entry := <-h.queue:
-			err := h.write(entry)
-			if err != nil {
-				return
-			}
-			core.PutEntry(entry)
-			// Batch drain: process additional queued entries without blocking
-		batchDrain:
-			for {
-				select {
-				case entry := <-h.queue:
-					err := h.write(entry)
-					if err != nil {
-						return
+			if h.bufferFormatter != nil {
+				// Batch path: format all currently-queued entries into batchBuf
+				// outside the lock, then write the whole batch under a single
+				// mu lock (one rotation check, one bufio.Write call).
+				batchBuf.Reset()
+				h.bufferFormatter.FormatEntry(entry, &batchBuf)
+				core.PutEntry(entry)
+				batchCount := 1
+			batchDrain:
+				for {
+					select {
+					case entry := <-h.queue:
+						h.bufferFormatter.FormatEntry(entry, &batchBuf)
+						core.PutEntry(entry)
+						batchCount++
+					default:
+						break batchDrain
 					}
-					core.PutEntry(entry)
-				default:
-					break batchDrain
+				}
+				// Count entries as processed before writing: they have already been
+				// dequeued and recycled via PutEntry, so they are consumed
+				// regardless of whether the Write call or rotation succeeds.
+				h.stats.AddProcessed(uint64(batchCount))
+				h.mu.Lock()
+				if err := h.rotateIfNeeded(); err != nil {
+					h.mu.Unlock()
+					return
+				}
+				n, writeErr := h.bufWriter.Write(batchBuf.Bytes())
+				if writeErr == nil {
+					h.currentSize += int64(n)
+				}
+				h.mu.Unlock()
+				if writeErr != nil {
+					return
+				}
+			} else {
+				// Non-bufferFormatter fallback: individual write per entry.
+				if err := h.write(entry); err != nil {
+					return
+				}
+				core.PutEntry(entry)
+			drainFallback:
+				for {
+					select {
+					case entry := <-h.queue:
+						if err := h.write(entry); err != nil {
+							return
+						}
+						core.PutEntry(entry)
+					default:
+						break drainFallback
+					}
 				}
 			}
 		case <-h.closed:
@@ -536,8 +577,7 @@ func (h *FileHandler) process() {
 			for {
 				select {
 				case entry := <-h.queue:
-					err := h.write(entry)
-					if err != nil {
+					if err := h.write(entry); err != nil {
 						return
 					}
 					core.PutEntry(entry)

@@ -1207,3 +1207,116 @@ func BenchmarkNlog_Parallel_WithFields_JSON(b *testing.B) {
 		}
 	})
 }
+
+// Benchmark coarse clock vs standard clock
+func BenchmarkCoarseClock_InfoNoFields(b *testing.B) {
+	tests := []struct {
+		name        string
+		coarseClock bool
+	}{
+		{"Standard", false},
+		{"CoarseClock", true},
+	}
+	for _, tt := range tests {
+		b.Run(tt.name, func(b *testing.B) {
+			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+				Writer:    discardWriter{},
+				Formatter: formatter.NewTextFormatter(formatter.Config{}),
+				Async:     false,
+			})
+			defer h.Close()
+
+			log := logger.NewBuilder().
+				WithHandler(h).
+				WithLevel(core.InfoLevel).
+				WithCoarseClock(tt.coarseClock).
+				Build()
+
+			b.ResetTimer()
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				log.Info("test message")
+			}
+		})
+	}
+}
+
+func BenchmarkCoarseClock_Info5Fields(b *testing.B) {
+	tests := []struct {
+		name        string
+		coarseClock bool
+	}{
+		{"Standard", false},
+		{"CoarseClock", true},
+	}
+	for _, tt := range tests {
+		b.Run(tt.name, func(b *testing.B) {
+			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+				Writer:    discardWriter{},
+				Formatter: formatter.NewTextFormatter(formatter.Config{}),
+				Async:     false,
+			})
+			defer h.Close()
+
+			log := logger.NewBuilder().
+				WithHandler(h).
+				WithLevel(core.InfoLevel).
+				WithCoarseClock(tt.coarseClock).
+				Build()
+
+			b.ResetTimer()
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				log.Info("test message",
+					logger.String("key1", "value1"),
+					logger.Int("key2", 42),
+					logger.Float64("key3", 3.14),
+					logger.Bool("key4", true),
+					logger.String("key5", "value5"),
+				)
+			}
+		})
+	}
+}
+
+func BenchmarkCoarseClock_SyncVsAsync(b *testing.B) {
+	tests := []struct {
+		name        string
+		async       bool
+		coarseClock bool
+	}{
+		{"Sync_Standard", false, false},
+		{"Sync_CoarseClock", false, true},
+		{"Async_Standard", true, false},
+		{"Async_CoarseClock", true, true},
+	}
+	for _, tt := range tests {
+		b.Run(tt.name, func(b *testing.B) {
+			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+				Writer:     discardWriter{},
+				Formatter:  formatter.NewTextFormatter(formatter.Config{}),
+				Async:      tt.async,
+				BufferSize: 10000,
+			})
+			defer h.Close()
+
+			log := logger.NewBuilder().
+				WithHandler(h).
+				WithLevel(core.InfoLevel).
+				WithCoarseClock(tt.coarseClock).
+				Build()
+
+			b.ResetTimer()
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				log.Info("test message",
+					logger.String("key1", "value1"),
+					logger.Int("key2", i),
+				)
+			}
+		})
+	}
+}

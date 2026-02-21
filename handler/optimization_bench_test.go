@@ -123,6 +123,31 @@ func BenchmarkFileHandler_AsyncThroughput(b *testing.B) {
 	}
 }
 
+// BenchmarkConsoleHandler_AsyncBatch benchmarks the batch-write path of the async ConsoleHandler.
+// Multiple entries are enqueued before the consumer wakes up, triggering batch accumulation.
+func BenchmarkConsoleHandler_AsyncBatch(b *testing.B) {
+	h := NewConsoleHandler(ConsoleConfig{
+		Writer:     io.Discard,
+		Async:      true,
+		BufferSize: 10000,
+		Formatter:  formatter.NewTextFormatter(formatter.Config{}),
+	})
+	defer h.Close()
+
+	entry := core.GetEntry()
+	entry.Level = core.InfoLevel
+	entry.Message = "async batch benchmark"
+	entry.Fields = []core.Field{
+		{Key: "key1", Type: core.StringType, Str: "value1"},
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		h.Handle(entry)
+	}
+}
+
 // BenchmarkFileHandler_Rotation benchmarks FileHandler with rotation enabled
 func BenchmarkFileHandler_Rotation(b *testing.B) {
 	dir := b.TempDir()
