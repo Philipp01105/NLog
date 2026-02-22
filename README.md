@@ -39,12 +39,12 @@ package main
 
 import (
 	"github.com/philipp01105/nlog/formatter"
-	"github.com/philipp01105/nlog/handler"
+	"github.com/philipp01105/nlog/handler/consolehandler"
 	"github.com/philipp01105/nlog/logger"
 )
 
 func main() {
-	consoleHandler := handler.NewConsoleHandler(handler.ConsoleConfig{
+	ch := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Async:      true,
 		BufferSize: 1000,
 		Formatter: formatter.NewTextFormatter(formatter.Config{
@@ -53,7 +53,7 @@ func main() {
 	})
 
 	myLogger := logger.NewBuilder().
-		WithHandler(consoleHandler).
+		WithHandler(ch).
 		WithLevel(logger.DebugLevel).
 		WithCaller(true).
 		WithFields(logger.String("service", "api")).
@@ -150,25 +150,31 @@ You can define your own formatter by implementing the `Formatter` interface.
 
 #### Handlers
 
-The framework ships with multiple handler implementations:
+The framework ships with multiple handler implementations, organized in sub-packages:
 
-* **ConsoleHandler** — Writes to stdout/stderr. Async by default.
-* **FileHandler** — Writes to files with built-in rotation (by size, age, or interval).
-* **MultiHandler** — Fan-out to multiple handlers simultaneously.
-* **SlogHandler** — Drop-in `slog.Handler` adapter for `log/slog` compatibility.
+* **consolehandler.ConsoleHandler** — Writes to stdout/stderr. Async by default.
+* **filehandler.FileHandler** — Writes to files with built-in rotation (by size, age, or interval).
+* **multihandler.MultiHandler** — Fan-out to multiple handlers simultaneously.
+* **sloghandler.SlogHandler** — Drop-in `slog.Handler` adapter for `log/slog` compatibility.
 
 ```go
-consoleHandler := handler.NewConsoleHandler(handler.ConsoleConfig{Async: true})
+import (
+	"github.com/philipp01105/nlog/handler/consolehandler"
+	"github.com/philipp01105/nlog/handler/filehandler"
+	"github.com/philipp01105/nlog/handler/multihandler"
+)
 
-fileHandler, _ := handler.NewFileHandler(handler.FileConfig{
+ch := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{Async: true})
+
+fh, _ := filehandler.NewFileHandler(filehandler.FileConfig{
 	Filename: "/var/log/app.log",
 	Async:    true,
 })
 
-multiHandler := handler.NewMultiHandler(consoleHandler, fileHandler)
+multi := multihandler.NewMultiHandler(ch, fh)
 
 myLogger := logger.NewBuilder().
-	WithHandler(multiHandler).
+	WithHandler(multi).
 	Build()
 
 myLogger.Info("This goes to both console and file")
@@ -179,7 +185,7 @@ myLogger.Info("This goes to both console and file")
 Async is the default. To opt out, disable it per handler:
 
 ```go
-syncHandler := handler.NewConsoleHandler(handler.ConsoleConfig{
+syncHandler := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 	Async: false,
 })
 ```
@@ -189,7 +195,7 @@ syncHandler := handler.NewConsoleHandler(handler.ConsoleConfig{
 Unlike many logging libraries, file rotation is built-in. Multiple rotation triggers and backup management are supported:
 
 ```go
-handler.NewFileHandler(handler.FileConfig{
+filehandler.NewFileHandler(filehandler.FileConfig{
 	Filename:       "/var/log/app.log",
 	MaxSize:        100 * 1024 * 1024,   // Rotate at 100MB
 	MaxAge:         7 * 24 * time.Hour,   // Rotate after 7 days
@@ -203,7 +209,7 @@ handler.NewFileHandler(handler.FileConfig{
 Control what happens when async queues fill up:
 
 ```go
-h := handler.NewConsoleHandler(handler.ConsoleConfig{
+h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 	OverflowPolicy: map[core.Level]handler.OverflowPolicy{
 		core.DebugLevel: handler.DropNewest,
 		core.ErrorLevel: handler.Block,
@@ -242,22 +248,23 @@ import (
 
 	"github.com/philipp01105/nlog/core"
 	"github.com/philipp01105/nlog/formatter"
-	"github.com/philipp01105/nlog/handler"
+	"github.com/philipp01105/nlog/handler/consolehandler"
+	"github.com/philipp01105/nlog/handler/sloghandler"
 )
 
 func main() {
-	consoleHandler := handler.NewConsoleHandler(handler.ConsoleConfig{
+	ch := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Async:     false,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 	})
 
-	slogHandler := handler.NewSlogHandler(consoleHandler, core.InfoLevel)
-	logger := slog.New(slogHandler)
+	sh := sloghandler.NewSlogHandler(ch, core.InfoLevel)
+	logger := slog.New(sh)
 
 	logger.Info("Hello from slog", "user", "alice", "count", 42)
 	logger.Warn("Something might be wrong", "component", "auth")
 
-	consoleHandler.Close()
+	ch.Close()
 }
 ```
 
@@ -295,7 +302,11 @@ myLogger.Debug("filtered") // 0.3 ns/op, 0 allocs
 | ------- | ----------- |
 | `core/` | Core types (Entry, Field, Level) shared across packages |
 | `logger/` | Main Logger API, Builder, and convenience functions |
-| `handler/` | Handler interface and implementations (Console, File, Multi, SlogHandler) |
+| `handler/` | Handler interface, StatsProvider, OverflowPolicy, and Stats types |
+| `handler/consolehandler/` | Console handler (sync/async) writing to io.Writer |
+| `handler/filehandler/` | File handler (sync/async) with rotation support |
+| `handler/multihandler/` | Fan-out handler dispatching to multiple children |
+| `handler/sloghandler/` | Adapter for log/slog compatibility |
 | `formatter/` | Formatter interface and implementations (Text, JSON, WriterFormatter) |
 
 #### Testing
