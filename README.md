@@ -1,8 +1,31 @@
-# Go Logging Framework
+# nlog
 
-A lightweight, high-performance structured logging framework for Go with zero-allocation optimizations, async processing, and flexible configuration.
+[![Go Reference](https://pkg.go.dev/badge/github.com/philipp01105/nlog.svg)](https://pkg.go.dev/github.com/philipp01105/nlog)
+[![Go Report Card](https://goreportcard.com/badge/github.com/philipp01105/nlog)](https://goreportcard.com/report/github.com/philipp01105/nlog)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-The framework is designed around **immutable logger instances** using the Builder pattern, making it inherently thread-safe. Logging is **async by default** with configurable overflow policies, and the hot path achieves **zero allocations**.
+**nlog** is a lightweight, high-performance structured logging library for Go with zero-allocation optimizations, async processing, and flexible configuration.
+
+nlog is designed around **immutable logger instances** using the Builder pattern, making it inherently thread-safe. Logging is **async by default** with configurable overflow policies, and the hot path achieves **zero allocations**.
+
+## Features
+
+| Feature | Description |
+| ------- | ----------- |
+| **Zero-Alloc Hot Path** | Entry pooling and level-check-before-allocation eliminate heap allocations |
+| **Async by Default** | Bounded queues with per-level overflow policies (Drop, Block) |
+| **Immutable Loggers** | Builder pattern ensures thread safety without read-path locking |
+| **Flexible Handlers** | Console, File (with rotation), MultiHandler fan-out |
+| **log/slog Integration** | Drop-in `slog.Handler` adapter for standard library compatibility |
+| **Structured Logging** | Type-safe field constructors (String, Int, Float64, Bool, Time, Duration, Err, Any) |
+| **JSON & Text Formatters** | Zero-copy `WriterFormatter` interface for both built-in formatters |
+| **File Rotation** | Built-in rotation by size, age, or interval with backup management |
+| **Telemetry** | Runtime statistics for monitoring drops, blocks, and throughput |
+| **CoarseClock** | Optional coarse-grained clock for reduced timestamp overhead |
+
+## Motivation
+
+Go's standard `log` package is minimal and `log/slog` focuses on compatibility across backends. nlog fills the gap for applications that need **maximum throughput** with **zero allocations** on the hot path, while still offering structured logging, async processing, and flexible output routing — all in a single, cohesive library.
 
 ## Installation
 
@@ -12,9 +35,9 @@ go get github.com/philipp01105/nlog
 
 Requires Go 1.24 or later.
 
-#### Example
+## Quick Start
 
-The simplest way to use the framework is the package-level default logger:
+The simplest way to use nlog is via the package-level default logger:
 
 ```go
 package main
@@ -70,9 +93,9 @@ With `formatter.NewJSONFormatter`, for easy parsing by logstash or Splunk:
 {"level":"INFO","message":"JSON formatted log","response_time":0.123,"service":"api","time":"2026-02-18T13:00:00Z","timestamp":"2026-02-18T13:00:00Z"}
 ```
 
-#### Fields
+### Fields
 
-The framework encourages structured logging through type-safe field constructors instead of format strings:
+nlog encourages structured logging through type-safe field constructors instead of format strings:
 
 ```go
 logger.Info("User action",
@@ -88,7 +111,7 @@ logger.Info("User action",
 )
 ```
 
-#### Default Fields
+### Default Fields
 
 Often it's helpful to have fields _always_ attached to log statements in an application or parts of one. Instead of repeating fields on every line, use `With()` to create a child logger with persistent context (immutable operation):
 
@@ -102,7 +125,7 @@ requestLogger.Info("Processing request", logger.String("path", "/api/users"))
 requestLogger.Info("Request completed", logger.Int("status", 200))
 ```
 
-#### Logging Method Name
+### Logging Method Name
 
 If you wish to add the calling method as a field, enable caller reporting:
 
@@ -114,9 +137,9 @@ myLogger := logger.NewBuilder().
 
 Note that this does add measurable overhead.
 
-#### Level Logging
+### Level Logging
 
-The framework has six logging levels: Debug, Info, Warning, Error, Fatal and Panic.
+nlog has six logging levels: Debug, Info, Warning, Error, Fatal and Panic.
 
 ```go
 logger.Debug("Useful debugging information.")
@@ -137,7 +160,7 @@ myLogger := logger.NewBuilder().
 	Build()
 ```
 
-#### Formatters
+### Formatters
 
 The built-in logging formatters are:
 
@@ -148,9 +171,9 @@ Both formatters support the zero-copy `WriterFormatter` interface for zero-alloc
 
 You can define your own formatter by implementing the `Formatter` interface.
 
-#### Handlers
+### Handlers
 
-The framework ships with multiple handler implementations, organized in sub-packages:
+nlog ships with multiple handler implementations, organized in sub-packages:
 
 * **consolehandler.ConsoleHandler** — Writes to stdout/stderr. Async by default.
 * **filehandler.FileHandler** — Writes to files with built-in rotation (by size, age, or interval).
@@ -180,7 +203,7 @@ myLogger := logger.NewBuilder().
 myLogger.Info("This goes to both console and file")
 ```
 
-#### Synchronous Logging
+### Synchronous Logging
 
 Async is the default. To opt out, disable it per handler:
 
@@ -190,7 +213,7 @@ syncHandler := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 })
 ```
 
-#### File Rotation
+### File Rotation
 
 Unlike many logging libraries, file rotation is built-in. Multiple rotation triggers and backup management are supported:
 
@@ -204,7 +227,7 @@ filehandler.NewFileHandler(filehandler.FileConfig{
 })
 ```
 
-#### Overflow Policies
+### Overflow Policies
 
 Control what happens when async queues fill up:
 
@@ -225,7 +248,7 @@ Available policies:
 * `DropOldest` — Remove oldest entry from queue
 * `Block` — Block caller with timeout, fallback to sync write (default for ERROR)
 
-#### Telemetry
+### Telemetry
 
 Monitor logging behavior in real-time to detect slow I/O, tune buffer sizes, and observe application load:
 
@@ -236,9 +259,9 @@ fmt.Printf("Dropped: %d\n", stats.DroppedTotal[core.InfoLevel])
 fmt.Printf("Blocked: %d\n", stats.BlockedTotal)
 ```
 
-#### `log/slog` Compatibility
+### `log/slog` Compatibility
 
-The framework provides a drop-in `slog.Handler` adapter for seamless integration with Go's standard `log/slog` package:
+nlog provides a drop-in `slog.Handler` adapter for seamless integration with Go's standard `log/slog` package:
 
 ```go
 package main
@@ -268,13 +291,13 @@ func main() {
 }
 ```
 
-#### Thread Safety
+### Thread Safety
 
 Logger instances are immutable after construction via the Builder pattern, making them inherently safe for concurrent use. Async handlers use bounded queues with configurable overflow policies. Shutdown is handled via an idempotent `Close()` with timeout-based queue draining.
 
-#### Performance
+### Performance
 
-The framework achieves zero allocations on the hot path through entry pooling, level-check-before-allocation, and the `WriterFormatter` zero-copy interface.
+nlog achieves zero allocations on the hot path through entry pooling, level-check-before-allocation, and the `WriterFormatter` zero-copy interface.
 
 ```text
 BenchmarkInfoNoFields              144 ns/op       0 B/op    0 allocs/op
@@ -296,7 +319,7 @@ myLogger := logger.NewBuilder().
 myLogger.Debug("filtered") // 0.3 ns/op, 0 allocs
 ```
 
-#### Package Structure
+### Package Structure
 
 | Package | Description |
 | ------- | ----------- |
@@ -309,7 +332,7 @@ myLogger.Debug("filtered") // 0.3 ns/op, 0 allocs
 | `handler/sloghandler/` | Adapter for log/slog compatibility |
 | `formatter/` | Formatter interface and implementations (Text, JSON, WriterFormatter) |
 
-#### Testing
+### Testing
 
 Run tests:
 
@@ -323,6 +346,6 @@ Run benchmarks:
 go test -bench=. -benchmem ./...
 ```
 
-#### License
+## License
 
-This project is open source and available under the MIT License.
+This project is open source and available under the [MIT License](LICENSE).
