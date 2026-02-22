@@ -7,9 +7,9 @@ import (
 	"github.com/philipp01105/nlog/core"
 )
 
-// newStoppedTimer creates a timer that is immediately stopped and drained,
+// NewStoppedTimer creates a timer that is immediately stopped and drained,
 // ready for reuse via Reset().
-func newStoppedTimer() *time.Timer {
+func NewStoppedTimer() *time.Timer {
 	t := time.NewTimer(0)
 	if !t.Stop() {
 		select {
@@ -98,12 +98,6 @@ func (s *Stats) IncrementBlocked() {
 // IncrementProcessed atomically increments the processed counter
 func (s *Stats) IncrementProcessed() {
 	atomic.AddUint64(&s.ProcessedTotal, 1)
-}
-
-// AddProcessed atomically adds n to the processed counter.
-// Used by async batch writes to account for an entire batch in one atomic op.
-func (s *Stats) AddProcessed(n uint64) {
-	atomic.AddUint64(&s.ProcessedTotal, n)
 }
 
 // GetDropped returns the dropped count for a level

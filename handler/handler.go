@@ -20,3 +20,9 @@ type Handler interface {
 type FastHandler interface {
 	HandleLog(t time.Time, level core.Level, msg string, loggerFields, callFields []core.Field, caller core.CallerInfo) error
 }
+
+// StatsProvider is an optional interface that handlers can implement
+// to expose runtime statistics for monitoring.
+type StatsProvider interface {
+	Stats() Snapshot
+}
