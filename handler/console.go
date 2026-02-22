@@ -106,7 +106,7 @@ func NewConsoleHandler(cfg ConsoleConfig) *ConsoleHandler {
 		blockTimeout:   cfg.BlockTimeout,
 		stats:          NewStats(),
 		drainTimeout:   cfg.DrainTimeout,
-		blockTimer:     newStoppedTimer(),
+		blockTimer:     NewStoppedTimer(),
 	}
 
 	// Cache WriterFormatter for zero-alloc path

@@ -152,7 +152,7 @@ func NewFileHandler(cfg FileConfig) (*FileHandler, error) {
 		blockTimeout:   cfg.BlockTimeout,
 		stats:          NewStats(),
 		drainTimeout:   cfg.DrainTimeout,
-		blockTimer:     newStoppedTimer(),
+		blockTimer:     NewStoppedTimer(),
 	}
 
 	// Cache WriterFormatter for zero-alloc path

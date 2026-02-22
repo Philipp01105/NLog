@@ -100,6 +100,11 @@ func (s *Stats) IncrementProcessed() {
 	atomic.AddUint64(&s.ProcessedTotal, 1)
 }
 
+// AddProcessed atomically adds the given value to the processed counter
+func (s *Stats) AddProcessed(u uint64) {
+	atomic.AddUint64(&s.ProcessedTotal, u)
+}
+
 // GetDropped returns the dropped count for a level
 func (s *Stats) GetDropped(level core.Level) uint64 {
 	switch level {
