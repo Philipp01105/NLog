@@ -14,6 +14,9 @@ import (
 	"github.com/philipp01105/nlog/core"
 	"github.com/philipp01105/nlog/formatter"
 	"github.com/philipp01105/nlog/handler"
+	"github.com/philipp01105/nlog/handler/consolehandler"
+	"github.com/philipp01105/nlog/handler/filehandler"
+	"github.com/philipp01105/nlog/handler/multihandler"
 	"github.com/philipp01105/nlog/logger"
 )
 
@@ -32,7 +35,7 @@ var (
 
 // Benchmark logger creation
 func BenchmarkLoggerCreation(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    discardWriter{},
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 		Async:     false,
@@ -52,7 +55,7 @@ func BenchmarkLoggerCreation(b *testing.B) {
 
 // Benchmark logger creation with fields
 func BenchmarkLoggerCreationWithFields(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    discardWriter{},
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 		Async:     false,
@@ -76,7 +79,7 @@ func BenchmarkLoggerCreationWithFields(b *testing.B) {
 
 // Benchmark With() method (creating child loggers)
 func BenchmarkWith(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    discardWriter{},
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 		Async:     false,
@@ -98,7 +101,7 @@ func BenchmarkWith(b *testing.B) {
 
 // Benchmark basic Info logging without fields
 func BenchmarkInfoNoFields(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    discardWriter{},
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 		Async:     false,
@@ -120,7 +123,7 @@ func BenchmarkInfoNoFields(b *testing.B) {
 
 // Benchmark Info logging with 1 field
 func BenchmarkInfo1Field(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    discardWriter{},
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 		Async:     false,
@@ -142,7 +145,7 @@ func BenchmarkInfo1Field(b *testing.B) {
 
 // Benchmark Info logging with 5 fields
 func BenchmarkInfo5Fields(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    discardWriter{},
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 		Async:     false,
@@ -170,7 +173,7 @@ func BenchmarkInfo5Fields(b *testing.B) {
 
 // Benchmark Info logging with 10 fields
 func BenchmarkInfo10Fields(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    discardWriter{},
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 		Async:     false,
@@ -203,7 +206,7 @@ func BenchmarkInfo10Fields(b *testing.B) {
 
 // Benchmark disabled level (testing early exit optimization)
 func BenchmarkDisabledLevel(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    discardWriter{},
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 		Async:     false,
@@ -242,7 +245,7 @@ func BenchmarkFieldTypes(b *testing.B) {
 
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
-			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+			h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 				Writer:    discardWriter{},
 				Formatter: formatter.NewTextFormatter(formatter.Config{}),
 				Async:     false,
@@ -278,7 +281,7 @@ func BenchmarkFormatters(b *testing.B) {
 
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
-			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+			h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 				Writer:    discardWriter{},
 				Formatter: tt.formatter,
 				Async:     false,
@@ -316,7 +319,7 @@ func BenchmarkSyncVsAsync(b *testing.B) {
 
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
-			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+			h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 				Writer:     discardWriter{},
 				Formatter:  formatter.NewTextFormatter(formatter.Config{}),
 				Async:      tt.async,
@@ -354,7 +357,7 @@ func BenchmarkWithCaller(b *testing.B) {
 
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
-			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+			h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 				Writer:    discardWriter{},
 				Formatter: formatter.NewTextFormatter(formatter.Config{IncludeCaller: tt.includeCaller}),
 				Async:     false,
@@ -379,7 +382,7 @@ func BenchmarkWithCaller(b *testing.B) {
 
 // Benchmark formatted logging methods
 func BenchmarkFormattedLogging(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    discardWriter{},
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 		Async:     false,
@@ -413,7 +416,7 @@ func BenchmarkContextFields(b *testing.B) {
 
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
-			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+			h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 				Writer:    discardWriter{},
 				Formatter: formatter.NewTextFormatter(formatter.Config{}),
 				Async:     false,
@@ -460,7 +463,7 @@ func BenchmarkEntryPool(b *testing.B) {
 
 // Benchmark different log levels
 func BenchmarkLogLevels(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    discardWriter{},
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 		Async:     false,
@@ -509,7 +512,7 @@ func BenchmarkConcurrentLogging(b *testing.B) {
 
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
-			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+			h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 				Writer:     discardWriter{},
 				Formatter:  formatter.NewTextFormatter(formatter.Config{}),
 				Async:      true,
@@ -546,7 +549,7 @@ func BenchmarkFileHandler(b *testing.B) {
 	tmpFile.Close()
 	defer os.Remove(tmpFile.Name())
 
-	h, err := handler.NewFileHandler(handler.FileConfig{
+	h, err := filehandler.NewFileHandler(filehandler.FileConfig{
 		Filename:   tmpFile.Name(),
 		Formatter:  formatter.NewTextFormatter(formatter.Config{}),
 		Async:      true,
@@ -575,21 +578,21 @@ func BenchmarkFileHandler(b *testing.B) {
 
 // Benchmark multi handler
 func BenchmarkMultiHandler(b *testing.B) {
-	h1 := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h1 := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    discardWriter{},
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 		Async:     false,
 	})
 	defer h1.Close()
 
-	h2 := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h2 := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    discardWriter{},
 		Formatter: formatter.NewJSONFormatter(formatter.Config{}),
 		Async:     false,
 	})
 	defer h2.Close()
 
-	multiH := handler.NewMultiHandler(h1, h2)
+	multiH := multihandler.NewMultiHandler(h1, h2)
 	defer multiH.Close()
 
 	log := logger.NewBuilder().
@@ -648,7 +651,7 @@ func BenchmarkBufferPool(b *testing.B) {
 
 // Benchmark realistic application scenario
 func BenchmarkRealisticScenario(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:     discardWriter{},
 		Formatter:  formatter.NewJSONFormatter(formatter.Config{}),
 		Async:      true,
@@ -731,7 +734,7 @@ func BenchmarkLargeMessages(b *testing.B) {
 
 	for _, sz := range sizes {
 		b.Run(sz.name, func(b *testing.B) {
-			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+			h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 				Writer:     discardWriter{},
 				Formatter:  formatter.NewTextFormatter(formatter.Config{}),
 				Async:      false,
@@ -810,7 +813,7 @@ func BenchmarkOverflowPolicies(b *testing.B) {
 			policies := make(map[core.Level]handler.OverflowPolicy)
 			policies[core.InfoLevel] = tt.policy
 
-			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+			h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 				Writer:         discardWriter{},
 				Formatter:      formatter.NewTextFormatter(formatter.Config{}),
 				Async:          true,
@@ -840,7 +843,7 @@ func BenchmarkBufferSizes(b *testing.B) {
 
 	for _, size := range sizes {
 		b.Run(fmt.Sprintf("BufferSize%d", size), func(b *testing.B) {
-			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+			h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 				Writer:     discardWriter{},
 				Formatter:  formatter.NewTextFormatter(formatter.Config{}),
 				Async:      true,
@@ -869,7 +872,7 @@ func BenchmarkBatchLogging(b *testing.B) {
 
 	for _, batchSize := range batchSizes {
 		b.Run(fmt.Sprintf("Batch%d", batchSize), func(b *testing.B) {
-			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+			h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 				Writer:     discardWriter{},
 				Formatter:  formatter.NewTextFormatter(formatter.Config{}),
 				Async:      true,
@@ -902,7 +905,7 @@ func BenchmarkMultiHandlerCount(b *testing.B) {
 		b.Run(fmt.Sprintf("%dHandlers", count), func(b *testing.B) {
 			handlers := make([]handler.Handler, count)
 			for i := 0; i < count; i++ {
-				handlers[i] = handler.NewConsoleHandler(handler.ConsoleConfig{
+				handlers[i] = consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 					Writer:    discardWriter{},
 					Formatter: formatter.NewTextFormatter(formatter.Config{}),
 					Async:     false,
@@ -910,7 +913,7 @@ func BenchmarkMultiHandlerCount(b *testing.B) {
 				defer handlers[i].Close()
 			}
 
-			multiH := handler.NewMultiHandler(handlers...)
+			multiH := multihandler.NewMultiHandler(handlers...)
 			defer multiH.Close()
 
 			log := logger.NewBuilder().
@@ -934,7 +937,7 @@ func BenchmarkNestedContextLoggers(b *testing.B) {
 
 	for _, depth := range depths {
 		b.Run(fmt.Sprintf("Depth%d", depth), func(b *testing.B) {
-			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+			h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 				Writer:    discardWriter{},
 				Formatter: formatter.NewTextFormatter(formatter.Config{}),
 				Async:     false,
@@ -963,7 +966,7 @@ func BenchmarkNestedContextLoggers(b *testing.B) {
 
 // Benchmark mixed field types (realistic scenario)
 func BenchmarkMixedFieldTypes(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    discardWriter{},
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 		Async:     false,
@@ -996,7 +999,7 @@ func BenchmarkJSONFormatterFields(b *testing.B) {
 
 	for _, count := range fieldCounts {
 		b.Run(fmt.Sprintf("%dFields", count), func(b *testing.B) {
-			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+			h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 				Writer:    discardWriter{},
 				Formatter: formatter.NewJSONFormatter(formatter.Config{}),
 				Async:     false,
@@ -1026,7 +1029,7 @@ func BenchmarkJSONFormatterFields(b *testing.B) {
 
 // Benchmark string concatenation in messages
 func BenchmarkMessageConstruction(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    discardWriter{},
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 		Async:     false,
@@ -1062,7 +1065,7 @@ func BenchmarkMessageConstruction(b *testing.B) {
 
 // Benchmark all log levels in sequence (realistic usage)
 func BenchmarkAllLevelsSequence(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:     discardWriter{},
 		Formatter:  formatter.NewTextFormatter(formatter.Config{}),
 		Async:      true,
@@ -1087,7 +1090,7 @@ func BenchmarkAllLevelsSequence(b *testing.B) {
 }
 
 func BenchmarkNlog_Parallel_NoFields_Text(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    io.Discard,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 		Async:     false,
@@ -1111,7 +1114,7 @@ func BenchmarkNlog_Parallel_NoFields_Text(b *testing.B) {
 }
 
 func BenchmarkNlog_Parallel_NoFields_JSON(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    io.Discard,
 		Formatter: formatter.NewJSONFormatter(formatter.Config{}),
 		Async:     false,
@@ -1155,7 +1158,7 @@ func BenchmarkNlog_Parallel_NoFormatting_NoopHandler(b *testing.B) {
 }
 
 func BenchmarkNlog_Parallel_WithFields_Text(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    io.Discard,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
 		Async:     false,
@@ -1182,7 +1185,7 @@ func BenchmarkNlog_Parallel_WithFields_Text(b *testing.B) {
 }
 
 func BenchmarkNlog_Parallel_WithFields_JSON(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    io.Discard,
 		Formatter: formatter.NewJSONFormatter(formatter.Config{}),
 		Async:     false,
@@ -1219,7 +1222,7 @@ func BenchmarkCoarseClock_InfoNoFields(b *testing.B) {
 	}
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
-			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+			h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 				Writer:    discardWriter{},
 				Formatter: formatter.NewTextFormatter(formatter.Config{}),
 				Async:     false,
@@ -1252,7 +1255,7 @@ func BenchmarkCoarseClock_Info5Fields(b *testing.B) {
 	}
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
-			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+			h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 				Writer:    discardWriter{},
 				Formatter: formatter.NewTextFormatter(formatter.Config{}),
 				Async:     false,
@@ -1294,7 +1297,7 @@ func BenchmarkCoarseClock_SyncVsAsync(b *testing.B) {
 	}
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
-			h := handler.NewConsoleHandler(handler.ConsoleConfig{
+			h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 				Writer:     discardWriter{},
 				Formatter:  formatter.NewTextFormatter(formatter.Config{}),
 				Async:      tt.async,

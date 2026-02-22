@@ -5,7 +5,7 @@ import (
 
 	"github.com/philipp01105/nlog/core"
 	"github.com/philipp01105/nlog/formatter"
-	"github.com/philipp01105/nlog/handler"
+	"github.com/philipp01105/nlog/handler/consolehandler"
 )
 
 var (
@@ -15,7 +15,7 @@ var (
 
 func init() {
 	// Initialize default logger with console handler
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Async:      true,
 		BufferSize: 1000,
 		Formatter:  formatter.NewTextFormatter(formatter.Config{}),

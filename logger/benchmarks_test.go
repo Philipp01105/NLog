@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/philipp01105/nlog/formatter"
-	"github.com/philipp01105/nlog/handler"
+	"github.com/philipp01105/nlog/handler/consolehandler"
 )
 
 // BenchmarkInfoNoFields benchmarks Info() with no fields using a discard writer.
 // Target: <150 ns/op, 0 allocs/op, 0 B/op
 func BenchmarkInfoNoFields(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    io.Discard,
 		Async:     false,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
@@ -33,7 +33,7 @@ func BenchmarkInfoNoFields(b *testing.B) {
 // BenchmarkInfoWith2Fields benchmarks Info() with 2 string fields using a discard writer.
 // Target: <250 ns/op, 0-1 allocs/op, <128 B/op
 func BenchmarkInfoWith2Fields(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    io.Discard,
 		Async:     false,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
@@ -55,7 +55,7 @@ func BenchmarkInfoWith2Fields(b *testing.B) {
 // BenchmarkFilteredDebug benchmarks Debug() when level is Info (should be filtered).
 // Target: <10 ns/op, 0 allocs/op, 0 B/op
 func BenchmarkFilteredDebug(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    io.Discard,
 		Async:     false,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
@@ -77,7 +77,7 @@ func BenchmarkFilteredDebug(b *testing.B) {
 // BenchmarkJSON benchmarks Info() with JSON formatter.
 // Target: <500 ns/op, 0-1 allocs/op, <256 B/op
 func BenchmarkJSON(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    io.Discard,
 		Async:     false,
 		Formatter: formatter.NewJSONFormatter(formatter.Config{}),

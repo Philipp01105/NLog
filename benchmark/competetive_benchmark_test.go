@@ -14,7 +14,7 @@ import (
 
 	"github.com/philipp01105/nlog/core"
 	"github.com/philipp01105/nlog/formatter"
-	"github.com/philipp01105/nlog/handler"
+	"github.com/philipp01105/nlog/handler/consolehandler"
 	"github.com/philipp01105/nlog/logger"
 )
 
@@ -24,7 +24,7 @@ import (
 
 // newNlogLogger returns an nlog logger that writes JSON to io.Discard.
 func newNlogLogger() *logger.Logger {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    io.Discard,
 		Formatter: formatter.NewJSONFormatter(formatter.Config{}),
 		Async:     false,
@@ -196,7 +196,7 @@ func BenchmarkCompetitive_InfoWithFields(b *testing.B) {
 
 func BenchmarkCompetitive_DisabledLevel(b *testing.B) {
 	b.Run("nlog", func(b *testing.B) {
-		h := handler.NewConsoleHandler(handler.ConsoleConfig{
+		h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 			Writer:    io.Discard,
 			Formatter: formatter.NewJSONFormatter(formatter.Config{}),
 			Async:     false,
@@ -415,7 +415,7 @@ func BenchmarkCompetitive_FileOutput(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		h := handler.NewConsoleHandler(handler.ConsoleConfig{
+		h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 			Writer:    f,
 			Formatter: formatter.NewJSONFormatter(formatter.Config{}),
 			Async:     false,

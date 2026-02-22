@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	"github.com/philipp01105/nlog/formatter"
-	"github.com/philipp01105/nlog/handler"
+	"github.com/philipp01105/nlog/handler/consolehandler"
 )
 
 func TestLogger_LevelGate(t *testing.T) {
 	var buf bytes.Buffer
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    &buf,
 		Async:     false, // Synchronous for testing
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
@@ -56,7 +56,7 @@ func TestLogger_LevelGate(t *testing.T) {
 
 func TestLogger_With(t *testing.T) {
 	var buf bytes.Buffer
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    &buf,
 		Async:     false,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
@@ -84,7 +84,7 @@ func TestLogger_With(t *testing.T) {
 
 func TestLogger_Fields(t *testing.T) {
 	var buf bytes.Buffer
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    &buf,
 		Async:     false,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
@@ -119,7 +119,7 @@ func TestLogger_Fields(t *testing.T) {
 
 func TestLogger_FormattedLogging(t *testing.T) {
 	var buf bytes.Buffer
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    &buf,
 		Async:     false,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
@@ -140,7 +140,7 @@ func TestLogger_FormattedLogging(t *testing.T) {
 
 func TestLogger_ImmutableWith(t *testing.T) {
 	var buf bytes.Buffer
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    &buf,
 		Async:     false,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
@@ -178,7 +178,7 @@ func TestLogger_ImmutableWith(t *testing.T) {
 }
 
 func BenchmarkLogger_LevelCheck(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    &bytes.Buffer{},
 		Async:     false,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
@@ -197,7 +197,7 @@ func BenchmarkLogger_LevelCheck(b *testing.B) {
 }
 
 func BenchmarkLogger_Info(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    &bytes.Buffer{},
 		Async:     false,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
@@ -215,7 +215,7 @@ func BenchmarkLogger_Info(b *testing.B) {
 }
 
 func BenchmarkLogger_InfoWithFields(b *testing.B) {
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    &bytes.Buffer{},
 		Async:     false,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
@@ -239,7 +239,7 @@ func BenchmarkLogger_InfoWithFields(b *testing.B) {
 
 func TestLogger_Fatal(t *testing.T) {
 	var buf bytes.Buffer
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    &buf,
 		Async:     false,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
@@ -271,7 +271,7 @@ func TestLogger_Fatal(t *testing.T) {
 
 func TestLogger_Panic(t *testing.T) {
 	var buf bytes.Buffer
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    &buf,
 		Async:     false,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
@@ -303,7 +303,7 @@ func TestLogger_Panic(t *testing.T) {
 
 func TestLogger_WithCoarseClock(t *testing.T) {
 	var buf bytes.Buffer
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    &buf,
 		Async:     false,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
@@ -336,7 +336,7 @@ func TestLogger_WithCoarseClock(t *testing.T) {
 
 func TestLogger_CoarseClockWith(t *testing.T) {
 	var buf bytes.Buffer
-	h := handler.NewConsoleHandler(handler.ConsoleConfig{
+	h := consolehandler.NewConsoleHandler(consolehandler.ConsoleConfig{
 		Writer:    &buf,
 		Async:     false,
 		Formatter: formatter.NewTextFormatter(formatter.Config{}),
