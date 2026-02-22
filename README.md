@@ -1,4 +1,4 @@
-# Go Logging Framework
+# NLog - another Go Logger
 
 A lightweight, high-performance structured logging framework for Go with zero-allocation optimizations, async processing, and flexible configuration.
 
